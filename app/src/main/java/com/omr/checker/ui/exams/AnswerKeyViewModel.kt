@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
 data class AnswerKeyUiState(
     val examId: Long = 0,
     val examTitle: String = "",
+    val templateName: String = "",
     val totalQuestions: Int = 60,
+    val optionsPerItem: Int = 4,
     val answerKey: Map<Int, Char> = emptyMap(),
     val pointsPerItem: Float = 1.0f,
     val isSaved: Boolean = false,
@@ -31,14 +33,25 @@ class AnswerKeyViewModel(
         viewModelScope.launch {
             val exam = repository.getExamById(examId) ?: return@launch
             val template = repository.getTemplateById(exam.templateId)
-            val totalQ = template?.totalItems ?: exam.answerKey.size.coerceAtLeast(60)
+            val totalQ = template?.totalItems ?: exam.answerKey.size.coerceAtLeast(1)
+            val optionsCount = template?.optionsPerItem ?: 4
+
+            val currentKey = exam.answerKey.toMutableMap()
+            val options = (0 until optionsCount).map { ('A' + it) }
+            for (q in 1..totalQ) {
+                if (!currentKey.containsKey(q)) {
+                    currentKey[q] = options[(q - 1) % optionsCount]
+                }
+            }
 
             _uiState.update {
                 it.copy(
                     examId = exam.id,
                     examTitle = exam.title,
+                    templateName = template?.name ?: "Answer Sheet",
                     totalQuestions = totalQ,
-                    answerKey = exam.answerKey,
+                    optionsPerItem = optionsCount,
+                    answerKey = currentKey,
                     pointsPerItem = exam.pointsPerItem
                 )
             }

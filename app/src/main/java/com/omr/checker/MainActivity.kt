@@ -74,10 +74,20 @@ fun OMRAppNavigation(
         startDestination = "exams"
     ) {
         // 1. Exams Screen (Home)
-        composable("exams") {
+        composable(
+            route = "exams?templateId={templateId}",
+            arguments = listOf(
+                navArgument("templateId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
+        ) { backStackEntry ->
+            val templateIdArg = backStackEntry.arguments?.getLong("templateId") ?: -1L
             val examListViewModel: ExamListViewModel = viewModel(factory = viewModelFactory)
             ExamListScreen(
                 viewModel = examListViewModel,
+                initialTemplateId = if (templateIdArg > 0) templateIdArg else null,
                 onNavigateToScan = { examId ->
                     navController.navigate("scanner/$examId")
                 },
@@ -102,9 +112,14 @@ fun OMRAppNavigation(
                 onEditTemplate = { templateId ->
                     navController.navigate("designer/$templateId")
                 },
+                onCreateExamForTemplate = { templateId ->
+                    navController.navigate("exams?templateId=$templateId") {
+                        popUpTo("exams?templateId={templateId}") { inclusive = true }
+                    }
+                },
                 onNavigateToExams = {
                     navController.navigate("exams") {
-                        popUpTo("exams") { inclusive = true }
+                        popUpTo("exams?templateId={templateId}") { inclusive = true }
                     }
                 },
                 onCheckForUpdates = onCheckForUpdates

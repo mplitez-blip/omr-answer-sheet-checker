@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -106,12 +107,20 @@ fun AnswerKeyEditScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                Text(
-                    text = "Tap the correct bubble (A-D) for each question:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                    Text(
+                        text = "${uiState.templateName} (${uiState.totalQuestions} Questions)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Tap the correct bubble for each question:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             items((1..uiState.totalQuestions).toList()) { q ->
@@ -137,7 +146,7 @@ fun AnswerKeyEditScreen(
                         )
 
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            val options = listOf('A', 'B', 'C', 'D')
+                            val options = (0 until uiState.optionsPerItem).map { ('A' + it) }
                             for (opt in options) {
                                 val isSelected = selectedOption == opt
                                 val bg = if (isSelected) MaterialTheme.colorScheme.primary else Color.White

@@ -9,12 +9,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ExamWithStats(
     val exam: ExamEntity,
+    val templateName: String = "",
     val totalScans: Int = 0,
     val averageScore: Float? = null
 )
@@ -45,10 +47,16 @@ class ExamListViewModel(
         }
 
         viewModelScope.launch {
-            repository.allExams.collect { exams ->
-                val list = exams.map { exam ->
-                    ExamWithStats(exam = exam)
+            combine(repository.allExams, repository.allTemplates) { exams, templates ->
+                val templateMap = templates.associateBy { it.id }
+                exams.map { exam ->
+                    val tpl = templateMap[exam.templateId]
+                    ExamWithStats(
+                        exam = exam,
+                        templateName = tpl?.name ?: "Template #${exam.templateId}"
+                    )
                 }
+            }.collect { list ->
                 _uiState.update { it.copy(examsWithStats = list) }
             }
         }
@@ -58,12 +66,13 @@ class ExamListViewModel(
         viewModelScope.launch {
             val template = repository.getTemplateById(templateId) ?: repository.ensureDefaultTemplate()
             val totalItems = template.totalItems
+            val optionsCount = template.optionsPerItem.coerceIn(2, 6)
+            val options = (0 until optionsCount).map { ('A' + it) }
 
-            // Default sample answer key (A, B, C, D cycling, easily editable)
+            // Default sample answer key (cycling, easily editable)
             val defaultKey = mutableMapOf<Int, Char>()
-            val options = listOf('A', 'B', 'C', 'D')
             for (q in 1..totalItems) {
-                defaultKey[q] = options[(q - 1) % 4]
+                defaultKey[q] = options[(q - 1) % optionsCount]
             }
 
             val examCode = "EXAM-${System.currentTimeMillis() % 10000}"
@@ -77,8 +86,31 @@ class ExamListViewModel(
             )
 
             val examId = repository.saveExam(exam)
-            _uiState.update { it.copy(message = "Exam '$title' created!") }
+            _uiState.update { it.copy(message = "Exam '$title' created with template '${template.name}' ($totalItems items)!") }
             onCreated(examId)
+        }
+    }
+
+    fun updateExamTemplate(exam: ExamEntity, newTemplateId: Long) {
+        viewModelScope.launch {
+            val template = repository.getTemplateById(newTemplateId) ?: return@launch
+            val totalItems = template.totalItems
+            val optionsCount = template.optionsPerItem.coerceIn(2, 6)
+            val options = (0 until optionsCount).map { ('A' + it) }
+
+            val updatedKey = exam.answerKey.filterKeys { it in 1..totalItems }.toMutableMap()
+            for (q in 1..totalItems) {
+                if (!updatedKey.containsKey(q)) {
+                    updatedKey[q] = options[(q - 1) % optionsCount]
+                }
+            }
+
+            val updatedExam = exam.copy(
+                templateId = template.id,
+                answerKey = updatedKey
+            )
+            repository.saveExam(updatedExam)
+            _uiState.update { it.copy(message = "Exam '${exam.title}' updated to '${template.name}' ($totalItems items)") }
         }
     }
 

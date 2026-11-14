@@ -1,5 +1,7 @@
 package com.omr.checker.ui.exams
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,15 +16,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -37,9 +41,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,6 +69,7 @@ import com.omr.checker.data.entity.ExamEntity
 @Composable
 fun ExamListScreen(
     viewModel: ExamListViewModel,
+    initialTemplateId: Long? = null,
     onNavigateToScan: (Long) -> Unit,
     onNavigateToEditKey: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
@@ -76,6 +83,24 @@ fun ExamListScreen(
     var newExamTitle by remember { mutableStateOf("Midterm Exam") }
     var newExamSection by remember { mutableStateOf("Section A") }
     var selectedTemplateId by remember { mutableLongStateOf(1L) }
+    var showChangeTemplateExam by remember { mutableStateOf<ExamEntity?>(null) }
+    var changeTemplateSelectedId by remember { mutableLongStateOf(1L) }
+
+    LaunchedEffect(initialTemplateId) {
+        if (initialTemplateId != null && initialTemplateId > 0) {
+            selectedTemplateId = initialTemplateId
+            showCreateDialog = true
+        }
+    }
+
+    LaunchedEffect(uiState.templates) {
+        if (uiState.templates.isNotEmpty() && !uiState.templates.any { it.id == selectedTemplateId }) {
+            val defaultTpl = uiState.templates.find { it.isDefault } ?: uiState.templates.firstOrNull()
+            if (defaultTpl != null) {
+                selectedTemplateId = defaultTpl.id
+            }
+        }
+    }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -146,9 +171,13 @@ fun ExamListScreen(
             ) {
                 items(uiState.examsWithStats, key = { it.exam.id }) { item ->
                     ExamCard(
-                        exam = item.exam,
+                        item = item,
                         onScan = { onNavigateToScan(item.exam.id) },
                         onEditKey = { onNavigateToEditKey(item.exam.id) },
+                        onChangeTemplate = {
+                            changeTemplateSelectedId = item.exam.templateId
+                            showChangeTemplateExam = item.exam
+                        },
                         onDelete = { viewModel.deleteExam(item.exam) }
                     )
                 }
@@ -161,7 +190,10 @@ fun ExamListScreen(
             onDismissRequest = { showCreateDialog = false },
             title = { Text("Create New Exam", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedTextField(
                         value = newExamTitle,
                         onValueChange = { newExamTitle = it },
@@ -176,6 +208,69 @@ fun ExamListScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Choose Answer Sheet Template:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (uiState.templates.isEmpty()) {
+                        Text(
+                            text = "Loading templates...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        uiState.templates.forEach { template ->
+                            val isSelected = template.id == selectedTemplateId
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else BorderStroke(0.5.dp, Color.LightGray),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedTemplateId = template.id }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { selectedTemplateId = template.id }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = template.name,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                fontSize = 14.sp
+                                            )
+                                            if (template.isDefault) {
+                                                Text(
+                                                    text = "DEFAULT",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "${template.totalItems} Questions (${template.optionsPerItem} Options: A-${'A' + template.optionsPerItem - 1})",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -201,13 +296,84 @@ fun ExamListScreen(
             }
         )
     }
+
+    showChangeTemplateExam?.let { examToChange ->
+        AlertDialog(
+            onDismissRequest = { showChangeTemplateExam = null },
+            title = { Text("Change Template: ${examToChange.title}", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Select a new answer sheet template for this exam. The answer key will be adjusted to the new template's question count.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    uiState.templates.forEach { template ->
+                        val isSelected = template.id == changeTemplateSelectedId
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else BorderStroke(0.5.dp, Color.LightGray),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { changeTemplateSelectedId = template.id }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { changeTemplateSelectedId = template.id }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = template.name,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "${template.totalItems} Questions (${template.optionsPerItem} Options: A-${'A' + template.optionsPerItem - 1})",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateExamTemplate(examToChange, changeTemplateSelectedId)
+                        showChangeTemplateExam = null
+                    }
+                ) {
+                    Text("Apply Template")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangeTemplateExam = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 fun ExamCard(
-    exam: ExamEntity,
+    item: ExamWithStats,
     onScan: () -> Unit,
     onEditKey: () -> Unit,
+    onChangeTemplate: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -224,25 +390,30 @@ fun ExamCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = exam.title,
+                        text = item.exam.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (exam.section.isNotBlank()) "Section: ${exam.section} • ${exam.sheetCode}" else exam.sheetCode,
+                        text = if (item.exam.section.isNotBlank()) "Section: ${item.exam.section} • ${item.exam.sheetCode}" else item.exam.sheetCode,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${exam.answerKey.size} Items • ${exam.pointsPerItem} pt each",
+                        text = "Sheet: ${item.templateName.ifBlank { "Template" }} (${item.exam.answerKey.size} Items) • ${item.exam.pointsPerItem} pt each",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onChangeTemplate) {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = "Change Template", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                    }
                 }
             }
 
