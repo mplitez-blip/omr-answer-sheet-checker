@@ -9,6 +9,7 @@ import com.omr.checker.data.entity.ScanResultEntity
 import com.omr.checker.data.entity.SheetTemplateEntity
 import com.omr.checker.data.repository.OMRRepository
 import com.omr.checker.domain.ScoringEngine
+import com.omr.checker.vision.CornerStatus
 import com.omr.checker.vision.OmrEngine
 import com.omr.checker.vision.OmrScanOutput
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ data class ScannerUiState(
     val isProcessing: Boolean = false,
     val isCornersLocked: Boolean = false,
     val detectedCorners: List<Point>? = null,
+    val cornerStatus: CornerStatus = CornerStatus(),
     val scanOutput: OmrScanOutput? = null,
     val gradeSummary: ScoringEngine.ScoreSummary? = null,
     val lastSavedScanId: Long? = null,
@@ -55,6 +57,34 @@ class ScannerViewModel(
                     statusMessage = "Ready to scan for ${exam?.title ?: "Exam"}"
                 )
             }
+        }
+    }
+
+    fun updateCornerStatus(status: CornerStatus) {
+        val count = status.detectedCount
+        val msg = when {
+            status.isAllDetected -> "✔ 4/4 Corner Marks Locked • Auto-Capturing..."
+            count == 0 -> "Align sheet corner marks inside the 4 guide boxes"
+            count == 1 -> "1/4 Corner Marks Detected"
+            count == 2 -> "2/4 Corner Marks Detected"
+            else -> {
+                val missing = when {
+                    !status.isTopLeftDetected -> "Top-Left"
+                    !status.isTopRightDetected -> "Top-Right"
+                    !status.isBottomLeftDetected -> "Bottom-Left"
+                    else -> "Bottom-Right"
+                }
+                "3/4 Detected • Align $missing Corner"
+            }
+        }
+
+        _uiState.update {
+            it.copy(
+                isCornersLocked = status.isAllDetected,
+                detectedCorners = status.toPointList(),
+                cornerStatus = status,
+                statusMessage = msg
+            )
         }
     }
 

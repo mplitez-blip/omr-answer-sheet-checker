@@ -220,8 +220,6 @@ fun ScannerScreen(
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 
-                            var lastCorners: List<org.opencv.core.Point>? = null
-
                             analysis.setAnalyzer(analysisExecutor) { imageProxy ->
                                 try {
                                     val currentState = viewModel.uiState.value
@@ -243,7 +241,7 @@ fun ScannerScreen(
                                         rawBitmap
                                     }
 
-                                    // Downscale to 480px width for fast live detection (<10ms)
+                                    // Downscale to 480px width for fast live detection (<8ms)
                                     val targetWidth = 480
                                     val scale = targetWidth.toFloat() / rotated.width.coerceAtLeast(1)
                                     val targetHeight = (rotated.height * scale).toInt().coerceAtLeast(1)
@@ -261,64 +259,40 @@ fun ScannerScreen(
                                     val detection = OmrEngine.detectLiveCorners(grayMat)
                                     grayMat.release()
 
+                                    // Update per-corner guide status in real-time
+                                    mainHandler.post {
+                                        viewModel.updateCornerStatus(detection.status)
+                                    }
+
                                     if (detection.isDetected && detection.corners != null && detection.corners.size == 4) {
-                                        val prev = lastCorners
-                                        val curr = detection.corners
-                                        lastCorners = curr
+                                        val count = consecutiveFrames.incrementAndGet()
 
-                                        // Verify that the sheet is held steady (jitter < 15px)
-                                        val isSteady = if (prev != null && prev.size == 4) {
-                                            val maxJitter = curr.indices.maxOf { i ->
-                                                hypot(curr[i].x - prev[i].x, curr[i].y - prev[i].y)
-                                            }
-                                            maxJitter < 15.0
-                                        } else {
-                                            true
-                                        }
-
-                                        if (isSteady) {
-                                            val count = consecutiveFrames.incrementAndGet()
-                                            if (count >= 2) {
+                                        // Auto-capture after 3 consecutive frames of 4/4 corner lock (~250ms)
+                                        if (count >= 3 && !isCapturing.get() && !currentState.isProcessing) {
+                                            if (isCapturing.compareAndSet(false, true)) {
                                                 mainHandler.post {
-                                                    viewModel.updateCornersLocked(true, detection.corners)
+                                                    captureAndGrade(
+                                                        imageCapture = imageCapture,
+                                                        context = context,
+                                                        onCaptured = { capturedBmp ->
+                                                            viewModel.processCapturedImage(
+                                                                bitmap = capturedBmp,
+                                                                context = context,
+                                                                onGraded = { scanId ->
+                                                                    isCapturing.set(false)
+                                                                    onNavigateToResult(scanId)
+                                                                }
+                                                            )
+                                                        },
+                                                        onError = {
+                                                            isCapturing.set(false)
+                                                        }
+                                                    )
                                                 }
                                             }
-
-                                            // Auto-capture after 4 steady consecutive frames (~350ms of stable 4-corner lock)
-                                            if (count >= 4 && !isCapturing.get() && !currentState.isProcessing) {
-                                                if (isCapturing.compareAndSet(false, true)) {
-                                                    mainHandler.post {
-                                                        captureAndGrade(
-                                                            imageCapture = imageCapture,
-                                                            context = context,
-                                                            onCaptured = { capturedBmp ->
-                                                                viewModel.processCapturedImage(
-                                                                    bitmap = capturedBmp,
-                                                                    context = context,
-                                                                    onGraded = { scanId ->
-                                                                        isCapturing.set(false)
-                                                                        onNavigateToResult(scanId)
-                                                                    }
-                                                                )
-                                                            },
-                                                            onError = {
-                                                                isCapturing.set(false)
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            consecutiveFrames.set(1)
                                         }
                                     } else {
-                                        lastCorners = null
                                         consecutiveFrames.set(0)
-                                        if (currentState.isCornersLocked && !isCapturing.get()) {
-                                            mainHandler.post {
-                                                viewModel.updateCornersLocked(false, null)
-                                            }
-                                        }
                                     }
                                 } catch (_: Exception) {
                                 } finally {
@@ -345,13 +319,13 @@ fun ScannerScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 2. Viewfinder Overlay with Cutout & Corner Registration Brackets
+                // 2. Viewfinder Overlay with Cutout & 4 Individual Corner Guide Boxes
                 ViewfinderOverlay(
-                    isLocked = uiState.isCornersLocked,
+                    cornerStatus = uiState.cornerStatus,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 3. Status Badge below top bar
+                // 3. Real-Time Corner Status Badge below top bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -359,13 +333,25 @@ fun ScannerScreen(
                         .align(Alignment.TopCenter),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (uiState.isCornersLocked) {
-                        Row(
-                            modifier = Modifier
-                                .background(Color(0xFF00E676), RoundedCornerShape(24.dp))
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    val count = uiState.cornerStatus.detectedCount
+                    val isAll = uiState.cornerStatus.isAllDetected
+
+                    val badgeBg = when {
+                        isAll -> Color(0xFF00E676)
+                        count >= 2 -> Color(0xFF0288D1)
+                        count == 1 -> Color(0xFFF57C00)
+                        else -> Color.Black.copy(alpha = 0.65f)
+                    }
+
+                    val textColor = if (isAll) Color.Black else Color.White
+
+                    Row(
+                        modifier = Modifier
+                            .background(badgeBg, RoundedCornerShape(24.dp))
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isAll) {
                             Icon(
                                 Icons.Default.CheckCircle,
                                 contentDescription = null,
@@ -374,22 +360,22 @@ fun ScannerScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "4 Corner Marks Locked • Auto-Capturing...",
+                                text = "4/4 Corners Locked • Auto-Capturing...",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
+                                color = textColor,
                                 fontSize = 13.sp
                             )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(20.dp))
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        } else if (count > 0) {
                             Text(
-                                text = "Align all 4 corner fiducial squares inside frame",
-                                color = Color.White,
+                                text = "$count/4 Corner Marks Detected",
+                                fontWeight = FontWeight.Bold,
+                                color = textColor,
+                                fontSize = 13.sp
+                            )
+                        } else {
+                            Text(
+                                text = "Align sheet corner marks inside the 4 guide boxes",
+                                color = textColor,
                                 fontSize = 12.sp
                             )
                         }
@@ -458,12 +444,12 @@ fun ScannerScreen(
 
 @Composable
 fun ViewfinderOverlay(
-    isLocked: Boolean,
+    cornerStatus: com.omr.checker.vision.CornerStatus,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        val strokeColor = if (isLocked) Color(0xFF00E676) else Color.White
-        val bracketColor = if (isLocked) Color(0xFF00E676) else Color(0xFF1E88E5)
+        val isAllLocked = cornerStatus.isAllDetected
+        val strokeColor = if (isAllLocked) Color(0xFF00E676) else Color.White
 
         // A4 Paper Aspect Ratio (1 : 1.414) centered cutout
         val cutoutWidth = size.width * 0.85f
@@ -479,37 +465,140 @@ fun ViewfinderOverlay(
         }
 
         clipPath(path, clipOp = ClipOp.Difference) {
-            drawRect(Color.Black.copy(alpha = if (isLocked) 0.50f else 0.65f))
+            drawRect(Color.Black.copy(alpha = if (isAllLocked) 0.45f else 0.65f))
         }
 
         // Draw Guide Frame
         drawRoundRect(
-            color = strokeColor.copy(alpha = if (isLocked) 0.9f else 0.5f),
+            color = strokeColor.copy(alpha = if (isAllLocked) 0.9f else 0.4f),
             topLeft = Offset(left, top),
             size = androidx.compose.ui.geometry.Size(cutoutWidth, cutoutHeight),
             cornerRadius = CornerRadius(8f, 8f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (isLocked) 3.5f else 2f)
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (isAllLocked) 3.5f else 2f)
         )
 
-        // Draw 4 Corner Registration Brackets
-        val bSize = if (isLocked) 44f else 32f
-        val bWidth = if (isLocked) 8f else 6f
+        // 4 Larger Guide Target Boxes at the 4 Corners
+        // The printed sheet fiducial square centers sit at 6% of sheet width from edges
+        val guideSize = (cutoutWidth * 0.16f).coerceIn(46f, 76f)
+        val markerOffset = cutoutWidth * 0.06f
 
-        // Top-Left bracket
-        drawLine(bracketColor, Offset(left - 4, top), Offset(left + bSize, top), bWidth)
-        drawLine(bracketColor, Offset(left, top - 4), Offset(left, top + bSize), bWidth)
+        // Top-Left Guide Box
+        drawCornerGuideBox(
+            center = Offset(left + markerOffset, top + markerOffset),
+            boxSize = guideSize,
+            isDetected = cornerStatus.isTopLeftDetected
+        )
 
-        // Top-Right bracket
-        drawLine(bracketColor, Offset(left + cutoutWidth + 4, top), Offset(left + cutoutWidth - bSize, top), bWidth)
-        drawLine(bracketColor, Offset(left + cutoutWidth, top - 4), Offset(left + cutoutWidth, top + bSize), bWidth)
+        // Top-Right Guide Box
+        drawCornerGuideBox(
+            center = Offset(left + cutoutWidth - markerOffset, top + markerOffset),
+            boxSize = guideSize,
+            isDetected = cornerStatus.isTopRightDetected
+        )
 
-        // Bottom-Left bracket
-        drawLine(bracketColor, Offset(left - 4, top + cutoutHeight), Offset(left + bSize, top + cutoutHeight), bWidth)
-        drawLine(bracketColor, Offset(left, top + cutoutHeight + 4), Offset(left, top + cutoutHeight - bSize), bWidth)
+        // Bottom-Left Guide Box
+        drawCornerGuideBox(
+            center = Offset(left + markerOffset, top + cutoutHeight - markerOffset),
+            boxSize = guideSize,
+            isDetected = cornerStatus.isBottomLeftDetected
+        )
 
-        // Bottom-Right bracket
-        drawLine(bracketColor, Offset(left + cutoutWidth + 4, top + cutoutHeight), Offset(left + cutoutWidth - bSize, top + cutoutHeight), bWidth)
-        drawLine(bracketColor, Offset(left + cutoutWidth, top + cutoutHeight + 4), Offset(left + cutoutWidth, top + cutoutHeight - bSize), bWidth)
+        // Bottom-Right Guide Box
+        drawCornerGuideBox(
+            center = Offset(left + cutoutWidth - markerOffset, top + cutoutHeight - markerOffset),
+            boxSize = guideSize,
+            isDetected = cornerStatus.isBottomRightDetected
+        )
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCornerGuideBox(
+    center: Offset,
+    boxSize: Float,
+    isDetected: Boolean
+) {
+    val half = boxSize / 2f
+    val boxTopLeft = Offset(center.x - half, center.y - half)
+    val boxSizeObj = androidx.compose.ui.geometry.Size(boxSize, boxSize)
+    val cornerRadius = CornerRadius(8f, 8f)
+
+    if (isDetected) {
+        // 1. Vibrant Green Glow Fill
+        drawRoundRect(
+            color = Color(0x4000E676),
+            topLeft = boxTopLeft,
+            size = boxSizeObj,
+            cornerRadius = cornerRadius
+        )
+
+        // 2. Thick Vibrant Emerald Green Border
+        drawRoundRect(
+            color = Color(0xFF00E676),
+            topLeft = boxTopLeft,
+            size = boxSizeObj,
+            cornerRadius = cornerRadius,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.5f)
+        )
+
+        // 3. Bold Green Checkmark in Center
+        val arm = boxSize * 0.22f
+        val checkColor = Color(0xFF00E676)
+        val strokeW = 5f
+        drawLine(
+            color = checkColor,
+            start = Offset(center.x - arm, center.y),
+            end = Offset(center.x - arm * 0.2f, center.y + arm * 0.8f),
+            strokeWidth = strokeW
+        )
+        drawLine(
+            color = checkColor,
+            start = Offset(center.x - arm * 0.2f, center.y + arm * 0.8f),
+            end = Offset(center.x + arm * 1.1f, center.y - arm * 0.8f),
+            strokeWidth = strokeW
+        )
+    } else {
+        // 1. Neutral guide box (translucent white/cyan border)
+        drawRoundRect(
+            color = Color(0x70FFFFFF),
+            topLeft = boxTopLeft,
+            size = boxSizeObj,
+            cornerRadius = cornerRadius,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f)
+        )
+
+        // 2. Inner target square indication (showing where the marker square should fit)
+        val targetSize = boxSize * 0.42f
+        val tHalf = targetSize / 2f
+        drawRoundRect(
+            color = Color(0x3064B5F6),
+            topLeft = Offset(center.x - tHalf, center.y - tHalf),
+            size = androidx.compose.ui.geometry.Size(targetSize, targetSize),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+        drawRoundRect(
+            color = Color(0x9064B5F6),
+            topLeft = Offset(center.x - tHalf, center.y - tHalf),
+            size = androidx.compose.ui.geometry.Size(targetSize, targetSize),
+            cornerRadius = CornerRadius(4f, 4f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
+        )
+
+        // 3. Corner tick brackets
+        val tick = 10f
+        val bColor = Color(0xB0FFFFFF)
+        val bW = 2.5f
+        // TL
+        drawLine(bColor, Offset(boxTopLeft.x, boxTopLeft.y), Offset(boxTopLeft.x + tick, boxTopLeft.y), bW)
+        drawLine(bColor, Offset(boxTopLeft.x, boxTopLeft.y), Offset(boxTopLeft.x, boxTopLeft.y + tick), bW)
+        // TR
+        drawLine(bColor, Offset(boxTopLeft.x + boxSize, boxTopLeft.y), Offset(boxTopLeft.x + boxSize - tick, boxTopLeft.y), bW)
+        drawLine(bColor, Offset(boxTopLeft.x + boxSize, boxTopLeft.y), Offset(boxTopLeft.x + boxSize, boxTopLeft.y + tick), bW)
+        // BL
+        drawLine(bColor, Offset(boxTopLeft.x, boxTopLeft.y + boxSize), Offset(boxTopLeft.x + tick, boxTopLeft.y + boxSize), bW)
+        drawLine(bColor, Offset(boxTopLeft.x, boxTopLeft.y + boxSize), Offset(boxTopLeft.x, boxTopLeft.y + boxSize - tick), bW)
+        // BR
+        drawLine(bColor, Offset(boxTopLeft.x + boxSize, boxTopLeft.y + boxSize), Offset(boxTopLeft.x + boxSize - tick, boxTopLeft.y + boxSize), bW)
+        drawLine(bColor, Offset(boxTopLeft.x + boxSize, boxTopLeft.y + boxSize), Offset(boxTopLeft.x + boxSize, boxTopLeft.y + boxSize - tick), bW)
     }
 }
 

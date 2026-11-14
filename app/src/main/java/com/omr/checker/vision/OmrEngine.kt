@@ -26,9 +26,35 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 
+data class CornerStatus(
+    val isTopLeftDetected: Boolean = false,
+    val isTopRightDetected: Boolean = false,
+    val isBottomLeftDetected: Boolean = false,
+    val isBottomRightDetected: Boolean = false,
+    val topLeftPoint: Point? = null,
+    val topRightPoint: Point? = null,
+    val bottomLeftPoint: Point? = null,
+    val bottomRightPoint: Point? = null
+) {
+    val detectedCount: Int
+        get() = (if (isTopLeftDetected) 1 else 0) +
+                (if (isTopRightDetected) 1 else 0) +
+                (if (isBottomLeftDetected) 1 else 0) +
+                (if (isBottomRightDetected) 1 else 0)
+
+    val isAllDetected: Boolean
+        get() = isTopLeftDetected && isTopRightDetected && isBottomLeftDetected && isBottomRightDetected
+
+    fun toPointList(): List<Point>? {
+        if (!isAllDetected) return null
+        return listOf(topLeftPoint!!, topRightPoint!!, bottomRightPoint!!, bottomLeftPoint!!)
+    }
+}
+
 data class CornerDetectionResult(
     val corners: List<Point>?,
-    val isDetected: Boolean
+    val isDetected: Boolean,
+    val status: CornerStatus = CornerStatus()
 )
 
 data class OmrScanOutput(
@@ -217,14 +243,14 @@ object OmrEngine {
 
     /**
      * Fast corner detection for live camera frames.
-     * Strictly requires the 4 printed solid black fiducial corner marks on bright white paper.
-     * Rejects dark objects, laptop screens, tables, mousepads, shadows, and non-OMR rectangles.
+     * Evaluates the 4 corner marker guide regions and reports individual corner lock statuses.
      */
     fun detectLiveCorners(grayMat: Mat): CornerDetectionResult {
-        val anchors = detectFiducialCornerMarks(grayMat)
+        val status = detectCornerMarkersStatus(grayMat)
         return CornerDetectionResult(
-            corners = anchors,
-            isDetected = anchors != null && anchors.size == 4
+            corners = status.toPointList(),
+            isDetected = status.isAllDetected,
+            status = status
         )
     }
 
@@ -233,21 +259,18 @@ object OmrEngine {
      * Prioritizes fiducial corner marks, and uses paper extrapolation.
      */
     fun detectSheetCorners(grayMat: Mat): List<Point>? {
-        // 1. Primary detector: 4 fiducial anchor squares
-        val anchors = detectFiducialCornerMarks(grayMat)
-        if (anchors != null && anchors.size == 4) {
-            return extrapolatePaperCorners(anchors)
+        val status = detectCornerMarkersStatus(grayMat)
+        if (status.isAllDetected) {
+            return extrapolatePaperCorners(status.toPointList()!!)
         }
-
-        // 2. Secondary fallback for high-res photo captures: verified bright document contour
         return detectValidatedDocumentContour(grayMat)
     }
 
     /**
-     * Detects the 4 printed solid black fiducial anchor squares on the OMR sheet.
-     * Validates square geometry, size uniformity, A4 aspect ratio, and white paper interior.
+     * Detects the small solid dark fiducial marker squares in each of the 4 corner quadrants.
+     * Returns individual detection status for each corner so UI guide boxes can light up green independently.
      */
-    fun detectFiducialCornerMarks(grayMat: Mat): List<Point>? {
+    fun detectCornerMarkersStatus(grayMat: Mat): CornerStatus {
         val cols = grayMat.cols().toDouble()
         val rows = grayMat.rows().toDouble()
         val totalArea = cols * rows
@@ -262,8 +285,8 @@ object OmrEngine {
         binary.release()
         hierarchy.release()
 
-        val minAnchorArea = totalArea * 0.0003 // ~90 px on 480x640 frame
-        val maxAnchorArea = totalArea * 0.020  // ~6000 px on 480x640 frame
+        val minAnchorArea = totalArea * 0.00015 // ~45 px on 480x640 frame
+        val maxAnchorArea = totalArea * 0.035   // ~10,000 px on 480x640 frame
 
         val candidates = mutableListOf<AnchorCandidate>()
 
@@ -273,33 +296,49 @@ object OmrEngine {
                 val rect = Imgproc.boundingRect(contour)
                 val aspect = rect.width.toDouble() / rect.height.toDouble()
 
-                // Anchor is square: aspect ratio between 0.68 and 1.45
-                if (aspect in 0.68..1.45) {
+                // Anchor is square: aspect ratio between 0.60 and 1.60
+                if (aspect in 0.60..1.60) {
                     val boxArea = rect.width.toDouble() * rect.height.toDouble()
                     val solidity = if (boxArea > 0) area / boxArea else 0.0
 
-                    // Solid filled square: solidity >= 0.65
-                    if (solidity >= 0.65) {
-                        // Check anchor darkness (black ink)
+                    // Solid filled square: solidity >= 0.58
+                    if (solidity >= 0.58) {
                         val safeRect = Rect(
                             rect.x.coerceIn(0, grayMat.cols() - 1),
                             rect.y.coerceIn(0, grayMat.rows() - 1),
                             rect.width.coerceAtMost(grayMat.cols() - rect.x),
                             rect.height.coerceAtMost(grayMat.rows() - rect.y)
                         )
-                        if (safeRect.width > 2 && safeRect.height > 2) {
+                        if (safeRect.width >= 3 && safeRect.height >= 3) {
                             val subMat = Mat(grayMat, safeRect)
                             val meanGray = Core.mean(subMat).`val`[0]
                             subMat.release()
 
-                            if (meanGray < 125.0) {
-                                val m = Imgproc.moments(contour)
-                                val center = if (m.m00 != 0.0) {
-                                    Point(m.m10 / m.m00, m.m01 / m.m00)
-                                } else {
-                                    Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+                            // Must be dark ink
+                            if (meanGray < 140.0) {
+                                // Check local surrounding background contrast
+                                val padX = (rect.width * 0.4).toInt().coerceIn(2, 16)
+                                val padY = (rect.height * 0.4).toInt().coerceIn(2, 16)
+                                val bgX = (rect.x - padX).coerceIn(0, grayMat.cols() - 1)
+                                val bgY = (rect.y - padY).coerceIn(0, grayMat.rows() - 1)
+                                val bgW = (rect.width + 2 * padX).coerceAtMost(grayMat.cols() - bgX)
+                                val bgH = (rect.height + 2 * padY).coerceAtMost(grayMat.rows() - bgY)
+
+                                val bgRect = Rect(bgX, bgY, bgW, bgH)
+                                val bgMat = Mat(grayMat, bgRect)
+                                val bgMean = Core.mean(bgMat).`val`[0]
+                                bgMat.release()
+
+                                // Surrounding background must be brighter than square (paper contrast)
+                                if (bgMean - meanGray >= 12.0 && bgMean >= 55.0) {
+                                    val m = Imgproc.moments(contour)
+                                    val center = if (m.m00 != 0.0) {
+                                        Point(m.m10 / m.m00, m.m01 / m.m00)
+                                    } else {
+                                        Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+                                    }
+                                    candidates.add(AnchorCandidate(center, safeRect, area, meanGray))
                                 }
-                                candidates.add(AnchorCandidate(center, safeRect, area, meanGray))
                             }
                         }
                     }
@@ -308,80 +347,87 @@ object OmrEngine {
             contour.release()
         }
 
-        if (candidates.size < 4) return null
+        if (candidates.isEmpty()) {
+            return CornerStatus()
+        }
 
         val midX = cols / 2.0
         val midY = rows / 2.0
 
-        // Partition candidates by quadrant
-        val tlCandidates = candidates.filter { it.center.x < midX * 1.10 && it.center.y < midY * 1.10 }
-        val trCandidates = candidates.filter { it.center.x > midX * 0.90 && it.center.y < midY * 1.10 }
-        val blCandidates = candidates.filter { it.center.x < midX * 1.10 && it.center.y > midY * 0.90 }
-        val brCandidates = candidates.filter { it.center.x > midX * 0.90 && it.center.y > midY * 0.90 }
+        // Partition candidates by quadrant and pick outermost marker in each quadrant
+        val tl = candidates
+            .filter { it.center.x < midX * 0.98 && it.center.y < midY * 0.98 }
+            .minByOrNull { hypot(it.center.x, it.center.y) }
 
-        if (tlCandidates.isEmpty() || trCandidates.isEmpty() || blCandidates.isEmpty() || brCandidates.isEmpty()) {
-            return null
+        val tr = candidates
+            .filter { it.center.x > midX * 1.02 && it.center.y < midY * 0.98 }
+            .minByOrNull { hypot(cols - it.center.x, it.center.y) }
+
+        val bl = candidates
+            .filter { it.center.x < midX * 0.98 && it.center.y > midY * 1.02 }
+            .minByOrNull { hypot(it.center.x, rows - it.center.y) }
+
+        val br = candidates
+            .filter { it.center.x > midX * 1.02 && it.center.y > midY * 1.02 }
+            .minByOrNull { hypot(cols - it.center.x, rows - it.center.y) }
+
+        val hasAll4 = tl != null && tr != null && bl != null && br != null
+
+        if (hasAll4) {
+            // Size uniformity: all 4 anchors should have similar physical size
+            val areas = listOf(tl.area, tr.area, bl.area, br.area)
+            val minA = areas.minOrNull()!!
+            val maxA = areas.maxOrNull()!!
+            val isSizeOk = maxA <= minA * 4.5
+
+            // Geometry check
+            val topW = hypot(tr.center.x - tl.center.x, tr.center.y - tl.center.y)
+            val botW = hypot(br.center.x - bl.center.x, br.center.y - bl.center.y)
+            val leftH = hypot(bl.center.x - tl.center.x, bl.center.y - tl.center.y)
+            val rightH = hypot(br.center.x - tr.center.x, br.center.y - tr.center.y)
+
+            val avgW = (topW + botW) / 2.0
+            val avgH = (leftH + rightH) / 2.0
+            val aspect = if (avgW > 0) avgH / avgW else 0.0
+
+            val isGeometryOk = avgW >= cols * 0.22 && avgH >= rows * 0.22 &&
+                    aspect in 1.05..1.90 &&
+                    abs(topW - botW) / avgW <= 0.35 &&
+                    abs(leftH - rightH) / avgH <= 0.35
+
+            if (isSizeOk && isGeometryOk) {
+                return CornerStatus(
+                    isTopLeftDetected = true,
+                    isTopRightDetected = true,
+                    isBottomLeftDetected = true,
+                    isBottomRightDetected = true,
+                    topLeftPoint = tl.center,
+                    topRightPoint = tr.center,
+                    bottomLeftPoint = bl.center,
+                    bottomRightPoint = br.center
+                )
+            }
         }
 
-        // Pick outermost candidate in each quadrant
-        val tl = tlCandidates.minByOrNull { hypot(it.center.x, it.center.y) }!!
-        val tr = trCandidates.minByOrNull { hypot(cols - it.center.x, it.center.y) }!!
-        val bl = blCandidates.minByOrNull { hypot(it.center.x, rows - it.center.y) }!!
-        val br = brCandidates.minByOrNull { hypot(cols - it.center.x, rows - it.center.y) }!!
+        // Return individual corner detection status for live visual feedback
+        return CornerStatus(
+            isTopLeftDetected = tl != null,
+            isTopRightDetected = tr != null,
+            isBottomLeftDetected = bl != null,
+            isBottomRightDetected = br != null,
+            topLeftPoint = tl?.center,
+            topRightPoint = tr?.center,
+            bottomLeftPoint = bl?.center,
+            bottomRightPoint = br?.center
+        )
+    }
 
-        // 1. Size Uniformity Check: all 4 anchors are printed at the exact same size
-        val areas = listOf(tl.area, tr.area, bl.area, br.area)
-        val minA = areas.minOrNull()!!
-        val maxA = areas.maxOrNull()!!
-        if (maxA > minA * 3.8) return null
-
-        // 2. Sheet Geometry & Dimension Check
-        val topW = hypot(tr.center.x - tl.center.x, tr.center.y - tl.center.y)
-        val botW = hypot(br.center.x - bl.center.x, br.center.y - bl.center.y)
-        val leftH = hypot(bl.center.x - tl.center.x, bl.center.y - tl.center.y)
-        val rightH = hypot(br.center.x - tr.center.x, br.center.y - tr.center.y)
-
-        val avgW = (topW + botW) / 2.0
-        val avgH = (leftH + rightH) / 2.0
-
-        // Sheet must span at least 28% of frame in both dimensions
-        if (avgW < cols * 0.28 || avgH < rows * 0.28) return null
-
-        // Trapezoid distortion limits
-        if (abs(topW - botW) / avgW > 0.32) return null
-        if (abs(leftH - rightH) / avgH > 0.32) return null
-
-        // Portrait aspect ratio check (A4 is 1.414, allow perspective angle variance)
-        val aspect = avgH / avgW
-        if (aspect !in 1.10..1.80) return null
-
-        // Tilt/Angle check: sheet must be roughly upright
-        if (abs(tr.center.y - tl.center.y) / topW > 0.30) return null
-        if (abs(br.center.y - bl.center.y) / botW > 0.30) return null
-        if (abs(bl.center.x - tl.center.x) / leftH > 0.30) return null
-        if (abs(br.center.x - tr.center.x) / rightH > 0.30) return null
-
-        // 3. Bright White Paper Interior Check (Rejects dark objects, laptops, tables, monitors)
-        val centerX = (tl.center.x + tr.center.x + bl.center.x + br.center.x) / 4.0
-        val centerY = (tl.center.y + tr.center.y + bl.center.y + br.center.y) / 4.0
-        val sampleW = (avgW * 0.35).toInt().coerceAtLeast(10)
-        val sampleH = (avgH * 0.35).toInt().coerceAtLeast(10)
-        val sampleX = (centerX - sampleW / 2.0).toInt().coerceIn(0, (cols - sampleW).toInt())
-        val sampleY = (centerY - sampleH / 2.0).toInt().coerceIn(0, (rows - sampleH).toInt())
-
-        val sampleRect = Rect(sampleX, sampleY, sampleW, sampleH)
-        val sampleMat = Mat(grayMat, sampleRect)
-        val interiorMean = Core.mean(sampleMat).`val`[0]
-        sampleMat.release()
-
-        val anchorMean = (tl.meanGray + tr.meanGray + bl.meanGray + br.meanGray) / 4.0
-
-        // Paper must be bright (>75) and significantly brighter than the black anchor squares
-        if (interiorMean < 75.0 || (interiorMean - anchorMean) < 22.0) {
-            return null
-        }
-
-        return listOf(tl.center, tr.center, br.center, bl.center)
+    /**
+     * Detects the 4 printed solid black fiducial anchor squares on the OMR sheet.
+     */
+    fun detectFiducialCornerMarks(grayMat: Mat): List<Point>? {
+        val status = detectCornerMarkersStatus(grayMat)
+        return status.toPointList()
     }
 
     /**
