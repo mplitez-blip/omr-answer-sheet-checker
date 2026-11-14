@@ -86,6 +86,7 @@ import org.opencv.imgproc.Imgproc
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.hypot
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -219,6 +220,8 @@ fun ScannerScreen(
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 
+                            var lastCorners: List<org.opencv.core.Point>? = null
+
                             analysis.setAnalyzer(analysisExecutor) { imageProxy ->
                                 try {
                                     val currentState = viewModel.uiState.value
@@ -258,39 +261,58 @@ fun ScannerScreen(
                                     val detection = OmrEngine.detectLiveCorners(grayMat)
                                     grayMat.release()
 
-                                    if (detection.isDetected) {
-                                        val count = consecutiveFrames.incrementAndGet()
-                                        if (count >= 2) {
-                                            mainHandler.post {
-                                                viewModel.updateCornersLocked(true, detection.corners)
+                                    if (detection.isDetected && detection.corners != null && detection.corners.size == 4) {
+                                        val prev = lastCorners
+                                        val curr = detection.corners
+                                        lastCorners = curr
+
+                                        // Verify that the sheet is held steady (jitter < 15px)
+                                        val isSteady = if (prev != null && prev.size == 4) {
+                                            val maxJitter = curr.indices.maxOf { i ->
+                                                hypot(curr[i].x - prev[i].x, curr[i].y - prev[i].y)
                                             }
+                                            maxJitter < 15.0
+                                        } else {
+                                            true
                                         }
 
-                                        // Auto-capture after 3 consecutive frames of corner stability (~250ms)
-                                        if (count >= 3 && !isCapturing.get() && !currentState.isProcessing) {
-                                            if (isCapturing.compareAndSet(false, true)) {
+                                        if (isSteady) {
+                                            val count = consecutiveFrames.incrementAndGet()
+                                            if (count >= 2) {
                                                 mainHandler.post {
-                                                    captureAndGrade(
-                                                        imageCapture = imageCapture,
-                                                        context = context,
-                                                        onCaptured = { capturedBmp ->
-                                                            viewModel.processCapturedImage(
-                                                                bitmap = capturedBmp,
-                                                                context = context,
-                                                                onGraded = { scanId ->
-                                                                    isCapturing.set(false)
-                                                                    onNavigateToResult(scanId)
-                                                                }
-                                                            )
-                                                        },
-                                                        onError = {
-                                                            isCapturing.set(false)
-                                                        }
-                                                    )
+                                                    viewModel.updateCornersLocked(true, detection.corners)
                                                 }
                                             }
+
+                                            // Auto-capture after 4 steady consecutive frames (~350ms of stable 4-corner lock)
+                                            if (count >= 4 && !isCapturing.get() && !currentState.isProcessing) {
+                                                if (isCapturing.compareAndSet(false, true)) {
+                                                    mainHandler.post {
+                                                        captureAndGrade(
+                                                            imageCapture = imageCapture,
+                                                            context = context,
+                                                            onCaptured = { capturedBmp ->
+                                                                viewModel.processCapturedImage(
+                                                                    bitmap = capturedBmp,
+                                                                    context = context,
+                                                                    onGraded = { scanId ->
+                                                                        isCapturing.set(false)
+                                                                        onNavigateToResult(scanId)
+                                                                    }
+                                                                )
+                                                            },
+                                                            onError = {
+                                                                isCapturing.set(false)
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            consecutiveFrames.set(1)
                                         }
                                     } else {
+                                        lastCorners = null
                                         consecutiveFrames.set(0)
                                         if (currentState.isCornersLocked && !isCapturing.get()) {
                                             mainHandler.post {
