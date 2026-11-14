@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +61,7 @@ fun TemplateListScreen(
     onCreateNewTemplate: () -> Unit,
     onEditTemplate: (Long) -> Unit,
     onNavigateToExams: () -> Unit,
+    onCheckForUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val templates by viewModel.templates.collectAsStateWithLifecycle()
@@ -79,7 +81,12 @@ fun TemplateListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Answer Sheet Templates", fontWeight = FontWeight.Bold) }
+                title = { Text("Answer Sheet Templates", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = onCheckForUpdates) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check for Updates")
+                    }
+                }
             )
         },
         bottomBar = {

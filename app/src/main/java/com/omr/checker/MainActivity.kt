@@ -31,6 +31,8 @@ import com.omr.checker.ui.scanner.ScannerViewModel
 import com.omr.checker.ui.templates.TemplateListScreen
 import com.omr.checker.ui.templates.TemplateListViewModel
 import com.omr.checker.ui.theme.OMRAnswerSheetCheckerTheme
+import com.omr.checker.ui.update.UpdateDialog
+import com.omr.checker.ui.update.UpdateViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +49,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OMRAppNavigation(viewModelFactory = viewModelFactory)
+                    val updateViewModel: UpdateViewModel = viewModel()
+                    UpdateDialog(viewModel = updateViewModel)
+
+                    OMRAppNavigation(
+                        viewModelFactory = viewModelFactory,
+                        onCheckForUpdates = { updateViewModel.checkForUpdates() }
+                    )
                 }
             }
         }
@@ -55,7 +63,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun OMRAppNavigation(viewModelFactory: ViewModelFactory) {
+fun OMRAppNavigation(
+    viewModelFactory: ViewModelFactory,
+    onCheckForUpdates: () -> Unit
+) {
     val navController = rememberNavController()
 
     NavHost(
@@ -75,7 +86,8 @@ fun OMRAppNavigation(viewModelFactory: ViewModelFactory) {
                 },
                 onNavigateToTemplates = {
                     navController.navigate("templates")
-                }
+                },
+                onCheckForUpdates = onCheckForUpdates
             )
         }
 
@@ -94,7 +106,8 @@ fun OMRAppNavigation(viewModelFactory: ViewModelFactory) {
                     navController.navigate("exams") {
                         popUpTo("exams") { inclusive = true }
                     }
-                }
+                },
+                onCheckForUpdates = onCheckForUpdates
             )
         }
 

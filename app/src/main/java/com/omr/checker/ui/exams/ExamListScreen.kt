@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,6 +66,7 @@ fun ExamListScreen(
     onNavigateToScan: (Long) -> Unit,
     onNavigateToEditKey: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
+    onCheckForUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,7 +89,12 @@ fun ExamListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Exams & Grading", fontWeight = FontWeight.Bold) }
+                title = { Text("Exams & Grading", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = onCheckForUpdates) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check for Updates")
+                    }
+                }
             )
         },
         bottomBar = {
