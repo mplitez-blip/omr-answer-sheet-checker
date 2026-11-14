@@ -155,7 +155,7 @@ class SheetDesignerViewModel(
                 type = ElementType.BUBBLE_GRID,
                 label = "Questions (1-60)",
                 x = 0.08f, y = 0.22f, width = 0.84f, height = 0.69f,
-                gridConfig = BubbleGridConfig(1, 60, listOf('A', 'B', 'C', 'D'), 2)
+                gridConfig = BubbleGridConfig(1, 60, listOf('A', 'B', 'C', 'D'), 3)
             )
         }
 

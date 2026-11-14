@@ -39,6 +39,6 @@ class LayoutBoundsTest {
         assertEquals(60, config.endQuestion)
         assertEquals(4, config.options.size)
         assertEquals(listOf('A', 'B', 'C', 'D'), config.options)
-        assertEquals(2, config.columns)
+        assertEquals(3, config.columns)
     }
 }

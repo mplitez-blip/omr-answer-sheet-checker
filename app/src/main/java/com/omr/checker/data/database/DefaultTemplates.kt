@@ -63,7 +63,7 @@ object DefaultTemplates {
                     startQuestion = 1,
                     endQuestion = 60,
                     options = listOf('A', 'B', 'C', 'D'),
-                    columns = 2
+                    columns = 3
                 )
             )
         )

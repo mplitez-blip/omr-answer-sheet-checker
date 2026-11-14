@@ -15,7 +15,7 @@ data class BubbleGridConfig(
     val startQuestion: Int = 1,
     val endQuestion: Int = 60,
     val options: List<Char> = listOf('A', 'B', 'C', 'D'),
-    val columns: Int = 2
+    val columns: Int = 3
 )
 
 data class SheetElement(
