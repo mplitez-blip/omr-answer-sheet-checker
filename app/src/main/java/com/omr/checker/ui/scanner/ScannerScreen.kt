@@ -6,10 +6,13 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -31,11 +34,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material3.Button
@@ -50,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +79,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omr.checker.vision.OmrEngine
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +121,17 @@ fun ScannerScreen(
     var camera: Camera? by remember { mutableStateOf(null) }
     var isTorchOn by remember { mutableStateOf(false) }
 
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val isCapturing = remember { AtomicBoolean(false) }
+    val consecutiveFrames = remember { AtomicInteger(0) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            analysisExecutor.shutdown()
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -123,7 +147,7 @@ fun ScannerScreen(
                         Text(
                             text = uiState.statusMessage,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.LightGray
+                            color = if (uiState.isCornersLocked) Color(0xFF00E676) else Color.LightGray
                         )
                     }
                 },
@@ -174,7 +198,7 @@ fun ScannerScreen(
                     .padding(innerPadding)
                     .background(Color.Black)
             ) {
-                // 1. CameraX PreviewView
+                // 1. CameraX PreviewView with ImageAnalysis for real-time corner detection
                 AndroidView(
                     factory = { ctx ->
                         val previewView = PreviewView(ctx)
@@ -191,6 +215,95 @@ fun ScannerScreen(
                                 .build()
                             imageCapture = capture
 
+                            val analysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+
+                            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                                try {
+                                    val currentState = viewModel.uiState.value
+                                    if (currentState.isProcessing || isCapturing.get()) {
+                                        imageProxy.close()
+                                        return@setAnalyzer
+                                    }
+
+                                    val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                                    val rawBitmap = imageProxy.toBitmap()
+
+                                    // Rotate if needed
+                                    val rotated = if (rotationDegrees != 0) {
+                                        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                                        val rot = Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
+                                        if (rot != rawBitmap) rawBitmap.recycle()
+                                        rot
+                                    } else {
+                                        rawBitmap
+                                    }
+
+                                    // Downscale to 480px width for fast live detection (<10ms)
+                                    val targetWidth = 480
+                                    val scale = targetWidth.toFloat() / rotated.width.coerceAtLeast(1)
+                                    val targetHeight = (rotated.height * scale).toInt().coerceAtLeast(1)
+                                    val scaled = Bitmap.createScaledBitmap(rotated, targetWidth, targetHeight, false)
+                                    if (scaled != rotated) rotated.recycle()
+
+                                    val rgbaMat = Mat()
+                                    Utils.bitmapToMat(scaled, rgbaMat)
+                                    scaled.recycle()
+
+                                    val grayMat = Mat()
+                                    Imgproc.cvtColor(rgbaMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
+                                    rgbaMat.release()
+
+                                    val detection = OmrEngine.detectLiveCorners(grayMat)
+                                    grayMat.release()
+
+                                    if (detection.isDetected) {
+                                        val count = consecutiveFrames.incrementAndGet()
+                                        if (count >= 2) {
+                                            mainHandler.post {
+                                                viewModel.updateCornersLocked(true, detection.corners)
+                                            }
+                                        }
+
+                                        // Auto-capture after 3 consecutive frames of corner stability (~250ms)
+                                        if (count >= 3 && !isCapturing.get() && !currentState.isProcessing) {
+                                            if (isCapturing.compareAndSet(false, true)) {
+                                                mainHandler.post {
+                                                    captureAndGrade(
+                                                        imageCapture = imageCapture,
+                                                        context = context,
+                                                        onCaptured = { capturedBmp ->
+                                                            viewModel.processCapturedImage(
+                                                                bitmap = capturedBmp,
+                                                                context = context,
+                                                                onGraded = { scanId ->
+                                                                    isCapturing.set(false)
+                                                                    onNavigateToResult(scanId)
+                                                                }
+                                                            )
+                                                        },
+                                                        onError = {
+                                                            isCapturing.set(false)
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        consecutiveFrames.set(0)
+                                        if (currentState.isCornersLocked && !isCapturing.get()) {
+                                            mainHandler.post {
+                                                viewModel.updateCornersLocked(false, null)
+                                            }
+                                        }
+                                    }
+                                } catch (_: Exception) {
+                                } finally {
+                                    imageProxy.close()
+                                }
+                            }
+
                             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
                             try {
@@ -199,7 +312,8 @@ fun ScannerScreen(
                                     lifecycleOwner,
                                     cameraSelector,
                                     preview,
-                                    capture
+                                    capture,
+                                    analysis
                                 )
                             } catch (_: Exception) {}
                         }, ContextCompat.getMainExecutor(ctx))
@@ -211,10 +325,56 @@ fun ScannerScreen(
 
                 // 2. Viewfinder Overlay with Cutout & Corner Registration Brackets
                 ViewfinderOverlay(
+                    isLocked = uiState.isCornersLocked,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 3. Shutter Button & Controls at Bottom
+                // 3. Status Badge below top bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .align(Alignment.TopCenter),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.isCornersLocked) {
+                        Row(
+                            modifier = Modifier
+                                .background(Color(0xFF00E676), RoundedCornerShape(24.dp))
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "4 Corner Marks Locked • Auto-Capturing...",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Align all 4 corner fiducial squares inside frame",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                // 4. Manual Shutter Button & Controls at Bottom
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,24 +391,34 @@ fun ScannerScreen(
                     } else {
                         IconButton(
                             onClick = {
-                                captureAndGrade(
-                                    imageCapture = imageCapture,
-                                    context = context,
-                                    onCaptured = { bitmap ->
-                                        viewModel.processCapturedImage(
-                                            bitmap = bitmap,
-                                            context = context,
-                                            onGraded = { scanId ->
-                                                onNavigateToResult(scanId)
-                                            }
-                                        )
-                                    }
-                                )
+                                if (isCapturing.compareAndSet(false, true)) {
+                                    captureAndGrade(
+                                        imageCapture = imageCapture,
+                                        context = context,
+                                        onCaptured = { bitmap ->
+                                            viewModel.processCapturedImage(
+                                                bitmap = bitmap,
+                                                context = context,
+                                                onGraded = { scanId ->
+                                                    isCapturing.set(false)
+                                                    onNavigateToResult(scanId)
+                                                }
+                                            )
+                                        },
+                                        onError = {
+                                            isCapturing.set(false)
+                                        }
+                                    )
+                                }
                             },
                             modifier = Modifier
                                 .size(72.dp)
                                 .background(Color.White, CircleShape)
-                                .border(4.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .border(
+                                    4.dp,
+                                    if (uiState.isCornersLocked) Color(0xFF00E676) else MaterialTheme.colorScheme.primary,
+                                    CircleShape
+                                )
                         ) {
                             Icon(
                                 Icons.Default.CameraAlt,
@@ -265,10 +435,13 @@ fun ScannerScreen(
 }
 
 @Composable
-fun ViewfinderOverlay(modifier: Modifier = Modifier) {
+fun ViewfinderOverlay(
+    isLocked: Boolean,
+    modifier: Modifier = Modifier
+) {
     Canvas(modifier = modifier) {
-        val strokeColor = Color.White
-        val bracketColor = Color(0xFF1E88E5)
+        val strokeColor = if (isLocked) Color(0xFF00E676) else Color.White
+        val bracketColor = if (isLocked) Color(0xFF00E676) else Color(0xFF1E88E5)
 
         // A4 Paper Aspect Ratio (1 : 1.414) centered cutout
         val cutoutWidth = size.width * 0.85f
@@ -284,21 +457,21 @@ fun ViewfinderOverlay(modifier: Modifier = Modifier) {
         }
 
         clipPath(path, clipOp = ClipOp.Difference) {
-            drawRect(Color.Black.copy(alpha = 0.65f))
+            drawRect(Color.Black.copy(alpha = if (isLocked) 0.50f else 0.65f))
         }
 
         // Draw Guide Frame
         drawRoundRect(
-            color = strokeColor.copy(alpha = 0.5f),
+            color = strokeColor.copy(alpha = if (isLocked) 0.9f else 0.5f),
             topLeft = Offset(left, top),
             size = androidx.compose.ui.geometry.Size(cutoutWidth, cutoutHeight),
             cornerRadius = CornerRadius(8f, 8f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (isLocked) 3.5f else 2f)
         )
 
         // Draw 4 Corner Registration Brackets
-        val bSize = 32f
-        val bWidth = 6f
+        val bSize = if (isLocked) 44f else 32f
+        val bWidth = if (isLocked) 8f else 6f
 
         // Top-Left bracket
         drawLine(bracketColor, Offset(left - 4, top), Offset(left + bSize, top), bWidth)
@@ -321,25 +494,28 @@ fun ViewfinderOverlay(modifier: Modifier = Modifier) {
 private fun captureAndGrade(
     imageCapture: ImageCapture?,
     context: Context,
-    onCaptured: (Bitmap) -> Unit
+    onCaptured: (Bitmap) -> Unit,
+    onError: () -> Unit = {}
 ) {
-    val capture = imageCapture ?: return
+    val capture = imageCapture ?: run {
+        onError()
+        return
+    }
 
     capture.takePicture(
         ContextCompat.getMainExecutor(context),
         object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
                 val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-                val buffer = imageProxy.planes[0].buffer
-                val bytes = ByteArray(buffer.remaining())
-                buffer.get(bytes)
-                val originalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val originalBitmap = imageProxy.toBitmap()
                 imageProxy.close()
 
                 // Rotate bitmap if needed according to EXIF/Camera rotation
                 val finalBitmap = if (rotationDegrees != 0) {
                     val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                    Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+                    val rot = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+                    if (rot != originalBitmap) originalBitmap.recycle()
+                    rot
                 } else {
                     originalBitmap
                 }
@@ -348,7 +524,7 @@ private fun captureAndGrade(
             }
 
             override fun onError(exception: ImageCaptureException) {
-                // Silently handle error or toast
+                onError()
             }
         }
     )

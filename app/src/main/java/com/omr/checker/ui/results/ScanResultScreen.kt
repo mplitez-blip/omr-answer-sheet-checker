@@ -1,5 +1,6 @@
 package com.omr.checker.ui.results
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,15 +44,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +71,7 @@ fun ScanResultScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showEnlargedImage by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -73,6 +82,7 @@ fun ScanResultScreen(
 
     val summary = uiState.scoreSummary
     val exam = uiState.exam
+    val imagePath = uiState.scanResult?.scannedImagePath
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -168,7 +178,60 @@ fun ScanResultScreen(
                 }
             }
 
-            // 2. Student Info Inputs
+            // 2. Graded Answer Sheet (Processed/Annotated Image Card)
+            if (!imagePath.isNullOrEmpty()) {
+                item {
+                    val imageFile = remember(imagePath) { File(imagePath) }
+                    if (imageFile.exists()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Graded Answer Sheet",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "✔ Correct  ❌ Wrong  Green Ring = Answer Key",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                    Text(
+                                        text = "Tap to enlarge",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                AsyncImage(
+                                    model = imageFile,
+                                    contentDescription = "Graded Answer Sheet",
+                                    contentScale = ContentScale.FillWidth,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                                        .clickable { showEnlargedImage = true }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Student Info Inputs
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -196,7 +259,7 @@ fun ScanResultScreen(
                 }
             }
 
-            // 3. Question Item Breakdown
+            // 4. Question Item Breakdown
             item {
                 Text(
                     text = "Question Breakdown & Verification",
@@ -221,6 +284,47 @@ fun ScanResultScreen(
                         onSelectAnswer = { opt ->
                             viewModel.overrideAnswer(q, opt)
                         }
+                    )
+                }
+            }
+        }
+    }
+
+    // Fullscreen Sheet Audit Dialog
+    if (showEnlargedImage && !imagePath.isNullOrEmpty()) {
+        Dialog(onDismissRequest = { showEnlargedImage = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Answer Sheet Audit View",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        IconButton(onClick = { showEnlargedImage = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AsyncImage(
+                        model = File(imagePath),
+                        contentDescription = "Full Graded Sheet",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
                     )
                 }
             }
@@ -263,26 +367,82 @@ fun QuestionReviewRow(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Item Number
                 Text(
                     text = String.format("%2d.", question),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    modifier = Modifier.width(32.dp)
+                    modifier = Modifier.width(28.dp)
                 )
 
-                when (isCorrect) {
-                    true -> Icon(Icons.Default.Check, contentDescription = "Correct", tint = Color(0xFF2E7D32), modifier = Modifier.size(18.dp))
-                    false -> Icon(Icons.Default.Close, contentDescription = "Incorrect", tint = Color(0xFFC62828), modifier = Modifier.size(18.dp))
-                    null -> Text("-", fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(start = 4.dp))
+                // Mark badge: ✔ for correct, ❌ for wrong, — for blank
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = when (isCorrect) {
+                        true -> Color(0xFF2E7D32)
+                        false -> Color(0xFFC62828)
+                        null -> Color.Gray
+                    },
+                    modifier = Modifier.padding(end = 6.dp)
+                ) {
+                    Text(
+                        text = when (isCorrect) {
+                            true -> " ✔ "
+                            false -> " ❌ "
+                            null -> " — "
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Key: $correctAnswer",
-                    fontSize = 12.sp,
-                    color = Color.DarkGray,
-                    fontWeight = FontWeight.SemiBold
-                )
+                // Detected Student Answer badge with colors
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = when (isCorrect) {
+                        true -> Color(0xFFE8F5E9)
+                        false -> Color(0xFFFFEBEE)
+                        null -> Color(0xFFEEEEEE)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        when (isCorrect) {
+                            true -> Color(0xFF2E7D32)
+                            false -> Color(0xFFC62828)
+                            null -> Color.LightGray
+                        }
+                    ),
+                    modifier = Modifier.padding(end = 6.dp)
+                ) {
+                    Text(
+                        text = "Ans: ${studentAnswer ?: "None"}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when (isCorrect) {
+                            true -> Color(0xFF1B5E20)
+                            false -> Color(0xFFB71C1C)
+                            null -> Color.DarkGray
+                        },
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+
+                // Answer Key badge with colors
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFFE0F2F1),
+                    border = BorderStroke(1.dp, Color(0xFF00897B)),
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    Text(
+                        text = "Key: $correctAnswer",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF004D40),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
             }
 
             // Options Selector (A, B, C, D)
@@ -295,16 +455,26 @@ fun QuestionReviewRow(
                     val bubbleBg = when {
                         isSelected && isKey -> Color(0xFF2E7D32)
                         isSelected && !isKey -> Color(0xFFC62828)
-                        !isSelected && isKey -> Color(0x302E7D32)
+                        !isSelected && isKey -> Color(0x3500C853)
                         else -> Color.White
                     }
 
-                    val textColor = if (isSelected) Color.White else Color.Black
+                    val borderColor = when {
+                        isKey -> Color(0xFF00C853)
+                        isSelected -> Color(0xFFC62828)
+                        else -> Color.Gray
+                    }
+
+                    val textColor = when {
+                        isSelected -> Color.White
+                        isKey -> Color(0xFF00796B)
+                        else -> Color.Black
+                    }
 
                     Box(
                         modifier = Modifier
                             .size(30.dp)
-                            .border(1.dp, if (isKey) Color(0xFF2E7D32) else Color.Gray, CircleShape)
+                            .border(if (isKey) 2.dp else 1.dp, borderColor, CircleShape)
                             .background(bubbleBg, CircleShape)
                             .clickable {
                                 onSelectAnswer(if (isSelected) null else opt)

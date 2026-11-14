@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.opencv.core.Point
 import java.io.File
 import java.io.FileOutputStream
 
@@ -26,6 +27,8 @@ data class ScannerUiState(
     val template: SheetTemplateEntity? = null,
     val isScanning: Boolean = false,
     val isProcessing: Boolean = false,
+    val isCornersLocked: Boolean = false,
+    val detectedCorners: List<Point>? = null,
     val scanOutput: OmrScanOutput? = null,
     val gradeSummary: ScoringEngine.ScoreSummary? = null,
     val lastSavedScanId: Long? = null,
@@ -55,6 +58,16 @@ class ScannerViewModel(
         }
     }
 
+    fun updateCornersLocked(isLocked: Boolean, corners: List<Point>?) {
+        _uiState.update {
+            it.copy(
+                isCornersLocked = isLocked,
+                detectedCorners = corners,
+                statusMessage = if (isLocked) "✔ 4 Corner Marks Detected - Auto-Capturing..." else "Position sheet within guide frame"
+            )
+        }
+    }
+
     fun processCapturedImage(
         bitmap: Bitmap,
         context: Context,
@@ -75,13 +88,24 @@ class ScannerViewModel(
 
                 val summary = ScoringEngine.grade(exam, output.rawAnswers)
 
-                // Save rectified image for audit
+                // Annotate the rectified bitmap with score, checkmarks ("✔"), wrong marks ("❌"), and answer keys
+                val annotatedBitmap = withContext(Dispatchers.Default) {
+                    OmrEngine.annotateGradedSheet(
+                        rectifiedBitmap = output.rectifiedBitmap,
+                        layoutConfig = template.layoutConfig,
+                        exam = exam,
+                        rawAnswers = output.rawAnswers,
+                        scoreSummary = summary
+                    )
+                }
+
+                // Save annotated image for visual audit
                 val imagePath = withContext(Dispatchers.IO) {
                     val scansDir = File(context.filesDir, "scans")
                     if (!scansDir.exists()) scansDir.mkdirs()
                     val file = File(scansDir, "scan_${exam.id}_${System.currentTimeMillis()}.png")
                     FileOutputStream(file).use { out ->
-                        output.rectifiedBitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                        annotatedBitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
                     }
                     file.absolutePath
                 }
