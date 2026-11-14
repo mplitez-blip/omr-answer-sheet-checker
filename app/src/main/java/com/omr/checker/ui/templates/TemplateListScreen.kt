@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +43,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omr.checker.data.entity.SheetTemplateEntity
 import com.omr.checker.generator.PdfExporterHelper
+import com.omr.checker.ui.preview.PdfPreviewDialog
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +73,7 @@ fun TemplateListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var previewPdf by remember { mutableStateOf<Pair<File, String>?>(null) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -133,6 +139,11 @@ fun TemplateListScreen(
                 items(templates, key = { it.id }) { template ->
                     TemplateCard(
                         template = template,
+                        onPreview = {
+                            viewModel.exportTemplatePdf(context, template) { file ->
+                                previewPdf = Pair(file, template.name)
+                            }
+                        },
                         onEdit = { onEditTemplate(template.id) },
                         onDownload = {
                             viewModel.exportTemplatePdf(context, template) { file ->
@@ -145,11 +156,20 @@ fun TemplateListScreen(
             }
         }
     }
+
+    previewPdf?.let { (file, title) ->
+        PdfPreviewDialog(
+            pdfFile = file,
+            title = title,
+            onDismiss = { previewPdf = null }
+        )
+    }
 }
 
 @Composable
 fun TemplateCard(
     template: SheetTemplateEntity,
+    onPreview: () -> Unit,
     onEdit: () -> Unit,
     onDownload: () -> Unit,
     onDelete: () -> Unit
@@ -209,24 +229,37 @@ fun TemplateCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
-                    onClick = onEdit,
-                    modifier = Modifier.padding(end = 8.dp)
+                    onClick = onPreview,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text(if (template.isDefault) "Customize / Copy" else "Edit")
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text("Preview", maxLines = 1, fontSize = 12.sp)
                 }
 
                 OutlinedButton(
-                    onClick = onDownload
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(if (template.isDefault) "Customize" else "Edit", maxLines = 1, fontSize = 12.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onDownload,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text("Download PDF")
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text("Download", maxLines = 1, fontSize = 12.sp)
                 }
             }
         }

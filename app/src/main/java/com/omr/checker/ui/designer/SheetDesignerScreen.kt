@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +69,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omr.checker.data.model.ElementType
 import com.omr.checker.data.model.SheetElement
 import com.omr.checker.generator.PdfExporterHelper
+import com.omr.checker.ui.preview.PdfPreviewDialog
+import java.io.File
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +83,7 @@ fun SheetDesignerScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var previewPdfFile by remember { mutableStateOf<File?>(null) }
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { msg ->
@@ -113,6 +117,13 @@ fun SheetDesignerScreen(
                     }
                     IconButton(onClick = { viewModel.saveTemplate {} }) {
                         Icon(Icons.Default.Save, contentDescription = "Save")
+                    }
+                    IconButton(onClick = {
+                        viewModel.exportPdf(context) { file ->
+                            previewPdfFile = file
+                        }
+                    }) {
+                        Icon(Icons.Default.Visibility, contentDescription = "Preview PDF")
                     }
                     if (uiState.isExporting) {
                         CircularProgressIndicator(
@@ -230,6 +241,14 @@ fun SheetDesignerScreen(
                 }
             }
         }
+    }
+
+    previewPdfFile?.let { file ->
+        PdfPreviewDialog(
+            pdfFile = file,
+            title = uiState.templateName.ifBlank { "Answer Sheet" },
+            onDismiss = { previewPdfFile = null }
+        )
     }
 }
 
