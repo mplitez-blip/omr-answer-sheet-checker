@@ -138,9 +138,13 @@ object OmrEngine {
             }
         }
 
-        // 2. Binary Thresholding for Optical Mark Recognition
+        // 2. Local Contrast Normalization (CLAHE) & Binary Thresholding for Optical Mark Recognition
+        val enhancedGray = Mat()
+        val clahe = Imgproc.createCLAHE(2.0, Size(8.0, 8.0))
+        clahe.apply(warpedGray, enhancedGray)
+
         val binary = Mat()
-        Imgproc.GaussianBlur(warpedGray, binary, Size(3.0, 3.0), 0.0)
+        Imgproc.GaussianBlur(enhancedGray, binary, Size(3.0, 3.0), 0.0)
         Imgproc.threshold(binary, binary, 0.0, 255.0, Imgproc.THRESH_BINARY_INV or Imgproc.THRESH_OTSU)
 
         // 3. Extract Bubble Fill Ratios
@@ -192,7 +196,7 @@ object OmrEngine {
         // 4. Create Rectified Bitmap for Visual Audit
         val rectifiedBitmap = Bitmap.createBitmap(WARPED_WIDTH.toInt(), WARPED_HEIGHT.toInt(), Bitmap.Config.ARGB_8888)
         val rectifiedColor = Mat()
-        Imgproc.cvtColor(warpedGray, rectifiedColor, Imgproc.COLOR_GRAY2RGBA)
+        Imgproc.cvtColor(enhancedGray, rectifiedColor, Imgproc.COLOR_GRAY2RGBA)
         Utils.matToBitmap(rectifiedColor, rectifiedBitmap)
 
         val confidence = if (groupedByQuestion.isNotEmpty()) {
@@ -203,6 +207,7 @@ object OmrEngine {
         srcRgba.release()
         srcGray.release()
         warpedGray.release()
+        enhancedGray.release()
         binary.release()
         rectifiedColor.release()
 
@@ -313,7 +318,18 @@ object OmrEngine {
         }
 
         // Try anchor detection on downscaled image
-        val status = detectCornerMarkersStatus(downscaled)
+        var status = detectCornerMarkersStatus(downscaled)
+        if (!status.isAllDetected) {
+            // Apply CLAHE to overcome ambient shadow gradients across sheet
+            val claheMat = Mat()
+            val clahe = Imgproc.createCLAHE(2.5, Size(8.0, 8.0))
+            clahe.apply(downscaled, claheMat)
+            val claheStatus = detectCornerMarkersStatus(claheMat)
+            claheMat.release()
+            if (claheStatus.detectedCount > status.detectedCount) {
+                status = claheStatus
+            }
+        }
 
         if (downscaled != grayMat) {
             downscaled.release()
