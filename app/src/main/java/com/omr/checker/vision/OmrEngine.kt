@@ -70,9 +70,10 @@ object OmrEngine {
     private const val WARPED_WIDTH = 1240.0
     private const val WARPED_HEIGHT = 1754.0
 
-    private const val FILL_THRESHOLD = 0.32f
-    private const val BLANK_THRESHOLD = 0.22f
-    private const val AMBIGUITY_DELTA = 0.10f
+    // Bubble darkness thresholds (relative to row baseline and absolute scale)
+    private const val MIN_SHADE_DARKNESS = 0.42f
+    private const val MIN_ROW_DELTA = 0.14f
+    private const val MIN_SEPARATION_DELTA = 0.08f
 
     /**
      * Processes an image bitmap of a sheet, detects the document boundary,
@@ -138,16 +139,29 @@ object OmrEngine {
             }
         }
 
-        // 2. Local Contrast Normalization (CLAHE) & Binary Thresholding for Optical Mark Recognition
-        val enhancedGray = Mat()
-        val clahe = Imgproc.createCLAHE(2.0, Size(8.0, 8.0))
-        clahe.apply(warpedGray, enhancedGray)
+        // 2. Automatic Orientation Verification:
+        // The top 18% of an upright answer sheet contains header info (Test Name, Student Name, Sheet Code, Instructions).
+        // The bottom 12% is empty white margin.
+        // If the bottom region contains significantly more ink than the top region, the sheet was captured upside down (180°).
+        val checkMarginX = (WARPED_WIDTH * 0.12).toInt()
+        val checkW = (WARPED_WIDTH * 0.76).toInt()
+        val topCheckY = (WARPED_HEIGHT * 0.04).toInt()
+        val checkH = (WARPED_HEIGHT * 0.14).toInt()
+        val botCheckY = (WARPED_HEIGHT * 0.82).toInt()
 
-        val binary = Mat()
-        Imgproc.GaussianBlur(enhancedGray, binary, Size(3.0, 3.0), 0.0)
-        Imgproc.threshold(binary, binary, 0.0, 255.0, Imgproc.THRESH_BINARY_INV or Imgproc.THRESH_OTSU)
+        val topRoi = Mat(warpedGray, Rect(checkMarginX, topCheckY, checkW, checkH))
+        val botRoi = Mat(warpedGray, Rect(checkMarginX, botCheckY, checkW, checkH))
 
-        // 3. Extract Bubble Fill Ratios
+        val topInk = 255.0 - Core.mean(topRoi).`val`[0]
+        val botInk = 255.0 - Core.mean(botRoi).`val`[0]
+        topRoi.release()
+        botRoi.release()
+
+        if (botInk > topInk * 1.35) {
+            Core.rotate(warpedGray, warpedGray, Core.ROTATE_180)
+        }
+
+        // 3. Extract Bubble Responses Using Relative Darkness (Robust against printed letters and lighting gradients)
         val bubbleLocations = BubbleCoordinateHelper.calculateBubbleLocations(layoutConfig)
         val groupedByQuestion = bubbleLocations.groupBy { it.question }
 
@@ -157,38 +171,49 @@ object OmrEngine {
 
         for ((question, bubbles) in groupedByQuestion) {
             val bubbleFills = bubbles.map { bubble ->
-                val fillRatio = calculateBubbleFillRatio(binary, bubble, WARPED_WIDTH.toFloat(), WARPED_HEIGHT.toFloat())
-                Pair(bubble.option, fillRatio)
+                val darkness = calculateBubbleDarkness(warpedGray, bubble, WARPED_WIDTH.toFloat(), WARPED_HEIGHT.toFloat())
+                Pair(bubble.option, darkness)
             }.sortedByDescending { it.second }
 
             val topOption = bubbleFills.firstOrNull()
             val secondOption = bubbleFills.getOrNull(1)
 
-            val topFill = topOption?.second ?: 0f
-            val secondFill = secondOption?.second ?: 0f
+            val topDarkness = topOption?.second ?: 0f
+            val secondDarkness = secondOption?.second ?: 0f
+
+            val otherBubbles = bubbleFills.drop(1)
+            val otherBaseline = if (otherBubbles.isNotEmpty()) {
+                otherBubbles.map { it.second }.average().toFloat()
+            } else 0f
+
+            val topDelta = topDarkness - otherBaseline
+            val separation = topDarkness - secondDarkness
+
+            val remainingAfterSecond = otherBubbles.drop(1)
+            val remainingBaseline = if (remainingAfterSecond.isNotEmpty()) {
+                remainingAfterSecond.map { it.second }.average().toFloat()
+            } else otherBaseline
+            val secondDelta = secondDarkness - remainingBaseline
 
             when {
-                topFill >= FILL_THRESHOLD && (topFill - secondFill) >= AMBIGUITY_DELTA -> {
-                    rawAnswers[question] = topOption?.first
-                    validAnswerCount++
-                }
-                topFill >= FILL_THRESHOLD && secondFill >= (FILL_THRESHOLD - 0.05f) -> {
-                    // Double mark detected
+                // Double mark detected: both top and second bubbles are significantly darker than baseline
+                topDelta >= MIN_ROW_DELTA && topDarkness >= MIN_SHADE_DARKNESS && secondDelta >= 0.12f && separation < MIN_SEPARATION_DELTA -> {
                     rawAnswers[question] = null
                     ambiguousQuestions.add(question)
                 }
-                topFill < BLANK_THRESHOLD -> {
-                    // Blank / unshaded
-                    rawAnswers[question] = null
+                // Valid single mark: top bubble is significantly darker than row baseline and clearly separated
+                topDelta >= MIN_ROW_DELTA && topDarkness >= MIN_SHADE_DARKNESS && separation >= MIN_SEPARATION_DELTA -> {
+                    rawAnswers[question] = topOption?.first
+                    validAnswerCount++
                 }
+                // Soft pencil shade with strong separation
+                topDelta >= 0.12f && topDarkness >= 0.38f && separation >= 0.10f -> {
+                    rawAnswers[question] = topOption?.first
+                    validAnswerCount++
+                }
+                // Blank row or unshaded
                 else -> {
-                    // Weak / partial shade
-                    if (topFill >= 0.28f && (topFill - secondFill) >= 0.08f) {
-                        rawAnswers[question] = topOption?.first
-                        validAnswerCount++
-                    } else {
-                        rawAnswers[question] = null
-                    }
+                    rawAnswers[question] = null
                 }
             }
         }
@@ -196,7 +221,7 @@ object OmrEngine {
         // 4. Create Rectified Bitmap for Visual Audit
         val rectifiedBitmap = Bitmap.createBitmap(WARPED_WIDTH.toInt(), WARPED_HEIGHT.toInt(), Bitmap.Config.ARGB_8888)
         val rectifiedColor = Mat()
-        Imgproc.cvtColor(enhancedGray, rectifiedColor, Imgproc.COLOR_GRAY2RGBA)
+        Imgproc.cvtColor(warpedGray, rectifiedColor, Imgproc.COLOR_GRAY2RGBA)
         Utils.matToBitmap(rectifiedColor, rectifiedBitmap)
 
         val confidence = if (groupedByQuestion.isNotEmpty()) {
@@ -207,8 +232,6 @@ object OmrEngine {
         srcRgba.release()
         srcGray.release()
         warpedGray.release()
-        enhancedGray.release()
-        binary.release()
         rectifiedColor.release()
 
         return OmrScanOutput(
@@ -221,27 +244,29 @@ object OmrEngine {
     }
 
     /**
-     * Calculates the fill ratio of dark pixels inside the circular ROI of a bubble.
+     * Calculates the normalized darkness (0.0f = white paper, 1.0f = black ink)
+     * inside the inner circular ROI of a bubble.
      */
-    private fun calculateBubbleFillRatio(
-        binaryMat: Mat,
+    private fun calculateBubbleDarkness(
+        grayMat: Mat,
         bubble: BubbleLocation,
         pageWidth: Float,
         pageHeight: Float
     ): Float {
         val cx = (bubble.normCenterX * pageWidth).toInt()
         val cy = (bubble.normCenterY * pageHeight).toInt()
-        // Sample 70% of radius to strictly sample inner circle without the printed border outline
-        val radius = (bubble.normRadius * pageWidth * 0.70f).toInt().coerceAtLeast(3)
+        // Sample inner 65% of bubble radius to strictly sample inside the circle,
+        // avoiding printed borders while capturing pen/pencil strokes.
+        val radius = (bubble.normRadius * pageWidth * 0.65f).toInt().coerceAtLeast(3)
 
         var totalPixels = 0
-        var filledPixels = 0
+        var sumDarkness = 0.0
 
         val r2 = radius * radius
         val minX = (cx - radius).coerceAtLeast(0)
-        val maxX = (cx + radius).coerceAtMost(binaryMat.cols() - 1)
+        val maxX = (cx + radius).coerceAtMost(grayMat.cols() - 1)
         val minY = (cy - radius).coerceAtLeast(0)
-        val maxY = (cy + radius).coerceAtMost(binaryMat.rows() - 1)
+        val maxY = (cy + radius).coerceAtMost(grayMat.rows() - 1)
 
         val buffer = ByteArray(1)
 
@@ -252,15 +277,14 @@ object OmrEngine {
                 val dx = x - cx
                 if (dx * dx + dy2 <= r2) {
                     totalPixels++
-                    binaryMat.get(y, x, buffer)
-                    if (buffer[0].toInt() and 0xFF > 128) {
-                        filledPixels++
-                    }
+                    grayMat.get(y, x, buffer)
+                    val gray = buffer[0].toInt() and 0xFF
+                    sumDarkness += (255 - gray) / 255.0
                 }
             }
         }
 
-        return if (totalPixels > 0) filledPixels.toFloat() / totalPixels else 0f
+        return if (totalPixels > 0) (sumDarkness / totalPixels).toFloat() else 0f
     }
 
     /**
@@ -475,62 +499,79 @@ object OmrEngine {
         val midX = cols / 2.0
         val midY = rows / 2.0
 
-        // Partition candidates by quadrant and pick outermost marker in each quadrant
-        val tl = candidates
-            .filter { it.center.x < midX && it.center.y < midY }
-            .minByOrNull { hypot(it.center.x, it.center.y) }
+        val tlCandidates = candidates.filter { it.center.x < midX && it.center.y < midY }
+        val trCandidates = candidates.filter { it.center.x >= midX && it.center.y < midY }
+        val blCandidates = candidates.filter { it.center.x < midX && it.center.y >= midY }
+        val brCandidates = candidates.filter { it.center.x >= midX && it.center.y >= midY }
 
-        val tr = candidates
-            .filter { it.center.x >= midX && it.center.y < midY }
-            .minByOrNull { hypot(cols - it.center.x, it.center.y) }
+        var bestQuad: List<AnchorCandidate>? = null
+        var bestScore = Double.MAX_VALUE
 
-        val bl = candidates
-            .filter { it.center.x < midX && it.center.y >= midY }
-            .minByOrNull { hypot(it.center.x, rows - it.center.y) }
+        // Search for the 4-tuple of candidates across quadrants that best forms an A4 rectangle
+        for (cTl in tlCandidates) {
+            for (cTr in trCandidates) {
+                val topW = hypot(cTr.center.x - cTl.center.x, cTr.center.y - cTl.center.y)
+                if (topW < cols * 0.25) continue
 
-        val br = candidates
-            .filter { it.center.x >= midX && it.center.y >= midY }
-            .minByOrNull { hypot(cols - it.center.x, rows - it.center.y) }
+                for (cBl in blCandidates) {
+                    val leftH = hypot(cBl.center.x - cTl.center.x, cBl.center.y - cTl.center.y)
+                    if (leftH < rows * 0.25) continue
 
-        val hasAll4 = tl != null && tr != null && bl != null && br != null
+                    for (cBr in brCandidates) {
+                        val botW = hypot(cBr.center.x - cBl.center.x, cBr.center.y - cBl.center.y)
+                        val rightH = hypot(cBr.center.x - cTr.center.x, cBr.center.y - cTr.center.y)
 
-        if (hasAll4) {
-            // Size uniformity: all 4 anchors should have similar physical size
-            val areas = listOf(tl.area, tr.area, bl.area, br.area)
-            val minA = areas.minOrNull()!!
-            val maxA = areas.maxOrNull()!!
-            val isSizeOk = maxA <= minA * 5.0
+                        val avgW = (topW + botW) / 2.0
+                        val avgH = (leftH + rightH) / 2.0
+                        val aspect = if (avgW > 0) avgH / avgW else 0.0
 
-            // Geometry check
-            val topW = hypot(tr.center.x - tl.center.x, tr.center.y - tl.center.y)
-            val botW = hypot(br.center.x - bl.center.x, br.center.y - bl.center.y)
-            val leftH = hypot(bl.center.x - tl.center.x, bl.center.y - tl.center.y)
-            val rightH = hypot(br.center.x - tr.center.x, br.center.y - tr.center.y)
+                        if (aspect !in 1.05..1.90) continue
+                        if (abs(topW - botW) / avgW > 0.28) continue
+                        if (abs(leftH - rightH) / avgH > 0.28) continue
 
-            val avgW = (topW + botW) / 2.0
-            val avgH = (leftH + rightH) / 2.0
-            val aspect = if (avgW > 0) avgH / avgW else 0.0
+                        val d1 = hypot(cBr.center.x - cTl.center.x, cBr.center.y - cTl.center.y)
+                        val d2 = hypot(cBl.center.x - cTr.center.x, cBl.center.y - cTr.center.y)
+                        val avgD = (d1 + d2) / 2.0
+                        if (abs(d1 - d2) / avgD > 0.22) continue
 
-            val isGeometryOk = avgW >= cols * 0.20 && avgH >= rows * 0.20 &&
-                    aspect in 0.90..2.20 &&
-                    abs(topW - botW) / avgW <= 0.50 &&
-                    abs(leftH - rightH) / avgH <= 0.50
+                        val areas = listOf(cTl.area, cTr.area, cBl.area, cBr.area)
+                        val minA = areas.minOrNull()!!
+                        val maxA = areas.maxOrNull()!!
+                        if (maxA > minA * 2.8) continue
 
-            if (isSizeOk && isGeometryOk) {
-                return CornerStatus(
-                    isTopLeftDetected = true,
-                    isTopRightDetected = true,
-                    isBottomLeftDetected = true,
-                    isBottomRightDetected = true,
-                    topLeftPoint = tl.center,
-                    topRightPoint = tr.center,
-                    bottomLeftPoint = bl.center,
-                    bottomRightPoint = br.center
-                )
+                        val score = (abs(topW - botW) / avgW) +
+                                    (abs(leftH - rightH) / avgH) +
+                                    (abs(d1 - d2) / avgD) +
+                                    abs(aspect - 1.414) * 0.5
+
+                        if (score < bestScore) {
+                            bestScore = score
+                            bestQuad = listOf(cTl, cTr, cBl, cBr)
+                        }
+                    }
+                }
             }
         }
 
-        // Return individual corner detection status for live visual feedback
+        if (bestQuad != null) {
+            return CornerStatus(
+                isTopLeftDetected = true,
+                isTopRightDetected = true,
+                isBottomLeftDetected = true,
+                isBottomRightDetected = true,
+                topLeftPoint = bestQuad[0].center,
+                topRightPoint = bestQuad[1].center,
+                bottomLeftPoint = bestQuad[2].center,
+                bottomRightPoint = bestQuad[3].center
+            )
+        }
+
+        // Fallback for live preview corner indicators: pick outermost marker in each quadrant
+        val tl = tlCandidates.minByOrNull { hypot(it.center.x, it.center.y) }
+        val tr = trCandidates.minByOrNull { hypot(cols - it.center.x, it.center.y) }
+        val bl = blCandidates.minByOrNull { hypot(it.center.x, rows - it.center.y) }
+        val br = brCandidates.minByOrNull { hypot(cols - it.center.x, rows - it.center.y) }
+
         return CornerStatus(
             isTopLeftDetected = tl != null,
             isTopRightDetected = tr != null,
