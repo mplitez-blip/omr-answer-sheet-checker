@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -85,8 +84,6 @@ fun ExamListScreen(
     var newExamTitle by remember { mutableStateOf("Midterm Exam") }
     var newExamSection by remember { mutableStateOf("Section A") }
     var selectedTemplateId by remember { mutableLongStateOf(1L) }
-    var showChangeTemplateExam by remember { mutableStateOf<ExamEntity?>(null) }
-    var changeTemplateSelectedId by remember { mutableLongStateOf(1L) }
 
     LaunchedEffect(initialTemplateId) {
         if (initialTemplateId != null && initialTemplateId > 0) {
@@ -184,10 +181,6 @@ fun ExamListScreen(
                         onScan = { onNavigateToScan(item.exam.id) },
                         onEditKey = { onNavigateToEditKey(item.exam.id) },
                         onViewPapers = { onNavigateToPapers(item.exam.id) },
-                        onChangeTemplate = {
-                            changeTemplateSelectedId = item.exam.templateId
-                            showChangeTemplateExam = item.exam
-                        },
                         onDelete = { viewModel.deleteExam(item.exam) }
                     )
                 }
@@ -306,76 +299,6 @@ fun ExamListScreen(
             }
         )
     }
-
-    showChangeTemplateExam?.let { examToChange ->
-        AlertDialog(
-            onDismissRequest = { showChangeTemplateExam = null },
-            title = { Text("Change Template: ${examToChange.title}", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Select a new answer sheet template for this exam. The answer key will be adjusted to the new template's question count.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    uiState.templates.forEach { template ->
-                        val isSelected = template.id == changeTemplateSelectedId
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else BorderStroke(0.5.dp, Color.LightGray),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { changeTemplateSelectedId = template.id }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = { changeTemplateSelectedId = template.id }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = template.name,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = "${template.totalItems} Questions (${template.optionsPerItem} Options: A-${'A' + template.optionsPerItem - 1})",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.updateExamTemplate(examToChange, changeTemplateSelectedId)
-                        showChangeTemplateExam = null
-                    }
-                ) {
-                    Text("Apply Template")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showChangeTemplateExam = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
 }
 
 @Composable
@@ -384,7 +307,6 @@ fun ExamCard(
     onScan: () -> Unit,
     onEditKey: () -> Unit,
     onViewPapers: () -> Unit,
-    onChangeTemplate: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -439,13 +361,8 @@ fun ExamCard(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onChangeTemplate) {
-                        Icon(Icons.Default.SwapHoriz, contentDescription = "Change Template", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
-                    }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
                 }
             }
 
