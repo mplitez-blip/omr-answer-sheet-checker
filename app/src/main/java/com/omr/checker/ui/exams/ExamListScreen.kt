@@ -72,10 +72,9 @@ import com.omr.checker.data.entity.ExamEntity
 fun ExamListScreen(
     viewModel: ExamListViewModel,
     initialTemplateId: Long? = null,
-    onNavigateToScan: (Long) -> Unit,
+    onNavigateToExamDetail: (Long) -> Unit,
     onNavigateToEditKey: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
-    onNavigateToPapers: (Long?) -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -132,12 +131,6 @@ fun ExamListScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { onNavigateToPapers(null) },
-                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
-                    label = { Text("Scans") }
-                )
-                NavigationBarItem(
-                    selected = false,
                     onClick = onNavigateToTemplates,
                     icon = { Icon(Icons.Default.Description, contentDescription = null) },
                     label = { Text("Templates") }
@@ -184,9 +177,7 @@ fun ExamListScreen(
                 items(uiState.examsWithStats, key = { it.exam.id }) { item ->
                     ExamCard(
                         item = item,
-                        onScan = { onNavigateToScan(item.exam.id) },
-                        onEditKey = { onNavigateToEditKey(item.exam.id) },
-                        onViewPapers = { onNavigateToPapers(item.exam.id) },
+                        onClick = { onNavigateToExamDetail(item.exam.id) },
                         onDuplicate = {
                             examToDuplicate = item
                             duplicateExamTitle = item.exam.title
@@ -440,16 +431,14 @@ fun ExamListScreen(
 @Composable
 fun ExamCard(
     item: ExamWithStats,
-    onScan: () -> Unit,
-    onEditKey: () -> Unit,
-    onViewPapers: () -> Unit,
+    onClick: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onViewPapers() },
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -478,7 +467,7 @@ fun ExamCard(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = if (item.totalScans > 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -488,12 +477,12 @@ fun ExamCard(
                                 val mpsStr = item.mps?.let { " • MPS: ${String.format(java.util.Locale.US, "%.1f", it)}%" } ?: ""
                                 "📄 ${item.totalScans} Papers Scanned$mpsStr"
                             } else {
-                                "📄 0 Papers Scanned"
+                                "📄 0 Papers Scanned • Tap to start"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = if (item.totalScans > 0) MaterialTheme.colorScheme.primary else Color.Gray,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -518,44 +507,6 @@ fun ExamCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onViewPapers,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Papers (${item.totalScans})", maxLines = 1, fontSize = 12.sp)
-                }
-
-                OutlinedButton(
-                    onClick = onEditKey,
-                    modifier = Modifier.weight(0.75f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Key", maxLines = 1, fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = onScan,
-                    modifier = Modifier.weight(0.85f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Scan", maxLines = 1, fontSize = 12.sp)
                 }
             }
         }

@@ -22,6 +22,7 @@ import com.omr.checker.ui.designer.SheetDesignerScreen
 import com.omr.checker.ui.designer.SheetDesignerViewModel
 import com.omr.checker.ui.exams.AnswerKeyEditScreen
 import com.omr.checker.ui.exams.AnswerKeyViewModel
+import com.omr.checker.ui.exams.ExamDetailScreen
 import com.omr.checker.ui.exams.ExamListScreen
 import com.omr.checker.ui.exams.ExamListViewModel
 import com.omr.checker.ui.papers.ScannedPapersScreen
@@ -91,8 +92,8 @@ fun OMRAppNavigation(
             ExamListScreen(
                 viewModel = examListViewModel,
                 initialTemplateId = if (templateIdArg > 0) templateIdArg else null,
-                onNavigateToScan = { examId ->
-                    navController.navigate("scanner/$examId")
+                onNavigateToExamDetail = { examId ->
+                    navController.navigate("exam_detail/$examId")
                 },
                 onNavigateToEditKey = { examId ->
                     navController.navigate("answer_key/$examId")
@@ -100,16 +101,39 @@ fun OMRAppNavigation(
                 onNavigateToTemplates = {
                     navController.navigate("templates")
                 },
-                onNavigateToPapers = { examId ->
-                    navController.navigate(if (examId != null && examId > 0) "papers?examId=$examId" else "papers")
-                },
                 onNavigateToSettings = {
                     navController.navigate("settings")
                 }
             )
         }
 
-        // 2. Templates Screen
+        // 2. Exam Detail Screen (Submissions, Answer Key, Quick Scan)
+        composable(
+            route = "exam_detail/{examId}",
+            arguments = listOf(
+                navArgument("examId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val examId = backStackEntry.arguments?.getLong("examId") ?: 0L
+            val papersViewModel: ScannedPapersViewModel = viewModel(factory = viewModelFactory)
+
+            ExamDetailScreen(
+                viewModel = papersViewModel,
+                examId = examId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToScan = { id ->
+                    navController.navigate("scanner/$id")
+                },
+                onNavigateToEditKey = { id ->
+                    navController.navigate("answer_key/$id")
+                },
+                onNavigateToResult = { scanResultId ->
+                    navController.navigate("result/$scanResultId")
+                }
+            )
+        }
+
+        // 3. Templates Screen
         composable("templates") {
             val templateListViewModel: TemplateListViewModel = viewModel(factory = viewModelFactory)
             TemplateListScreen(
@@ -124,9 +148,6 @@ fun OMRAppNavigation(
                     navController.navigate("exams") {
                         popUpTo("exams?templateId={templateId}") { inclusive = true }
                     }
-                },
-                onNavigateToPapers = {
-                    navController.navigate("papers")
                 },
                 onNavigateToSettings = {
                     navController.navigate("settings")
@@ -267,9 +288,6 @@ fun OMRAppNavigation(
                     navController.navigate("exams") {
                         popUpTo("exams?templateId={templateId}") { inclusive = true }
                     }
-                },
-                onNavigateToPapers = {
-                    navController.navigate("papers")
                 },
                 onNavigateToTemplates = {
                     navController.navigate("templates")

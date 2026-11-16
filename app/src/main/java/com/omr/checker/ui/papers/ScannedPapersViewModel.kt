@@ -39,6 +39,8 @@ data class ScannedPapersSummaryStats(
 
 data class ScannedPapersUiState(
     val exams: List<ExamEntity> = emptyList(),
+    val currentExam: ExamEntity? = null,
+    val currentTemplateName: String = "",
     val selectedExamId: Long? = null,
     val searchQuery: String = "",
     val sortOption: PaperSortOption = PaperSortOption.DATE_DESC,
@@ -102,6 +104,9 @@ class ScannedPapersViewModel(
                 sortOptionFlow
             ) { exams, allResults, examIdFilter, query, sort ->
                 val examMap = exams.associateBy { it.id }
+                val currentExam = exams.find { it.id == examIdFilter }
+                val template = currentExam?.let { repository.getTemplateById(it.templateId) }
+                val templateName = template?.name ?: ""
 
                 val filteredByExam = if (examIdFilter != null && examIdFilter > 0) {
                     allResults.filter { it.examId == examIdFilter }
@@ -160,6 +165,8 @@ class ScannedPapersViewModel(
                 _uiState.update {
                     it.copy(
                         exams = exams,
+                        currentExam = currentExam,
+                        currentTemplateName = templateName,
                         papers = uiModels,
                         stats = stats
                     )

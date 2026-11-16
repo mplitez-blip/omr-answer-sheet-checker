@@ -74,7 +74,6 @@ fun TemplateListScreen(
     onCreateNewTemplate: () -> Unit,
     onEditTemplate: (Long) -> Unit,
     onNavigateToExams: () -> Unit,
-    onNavigateToPapers: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -107,12 +106,6 @@ fun TemplateListScreen(
                     onClick = onNavigateToExams,
                     icon = { Icon(Icons.Default.Assignment, contentDescription = null) },
                     label = { Text("Exams") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToPapers,
-                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
-                    label = { Text("Scans") }
                 )
                 NavigationBarItem(
                     selected = true,

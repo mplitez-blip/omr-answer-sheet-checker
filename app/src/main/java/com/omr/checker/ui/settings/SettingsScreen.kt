@@ -49,7 +49,6 @@ import com.omr.checker.ui.update.UpdateViewModel
 fun SettingsScreen(
     updateViewModel: UpdateViewModel,
     onNavigateToExams: () -> Unit,
-    onNavigateToPapers: () -> Unit,
     onNavigateToTemplates: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -69,12 +68,6 @@ fun SettingsScreen(
                     onClick = onNavigateToExams,
                     icon = { Icon(Icons.Default.Assignment, contentDescription = null) },
                     label = { Text("Exams") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToPapers,
-                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
-                    label = { Text("Scans") }
                 )
                 NavigationBarItem(
                     selected = false,
