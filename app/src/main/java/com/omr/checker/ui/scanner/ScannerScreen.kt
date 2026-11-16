@@ -126,6 +126,7 @@ fun ScannerScreen(
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val isCapturing = remember { AtomicBoolean(false) }
     val consecutiveFrames = remember { AtomicInteger(0) }
+    val lastLockedCornersNorm = remember { java.util.concurrent.atomic.AtomicReference<List<org.opencv.core.Point>?>(null) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -265,11 +266,16 @@ fun ScannerScreen(
                                     }
 
                                     if (detection.isDetected && detection.corners != null && detection.corners.size == 4) {
+                                        val normCorners = detection.corners.map {
+                                            org.opencv.core.Point(it.x / targetWidth.toDouble(), it.y / targetHeight.toDouble())
+                                        }
+                                        lastLockedCornersNorm.set(normCorners)
                                         val count = consecutiveFrames.incrementAndGet()
 
                                         // Auto-capture after 3 consecutive frames of 4/4 corner lock (~250ms)
                                         if (count >= 3 && !isCapturing.get() && !currentState.isProcessing) {
                                             if (isCapturing.compareAndSet(false, true)) {
+                                                val hintCorners = lastLockedCornersNorm.get()
                                                 mainHandler.post {
                                                     captureAndGrade(
                                                         imageCapture = imageCapture,
@@ -278,6 +284,7 @@ fun ScannerScreen(
                                                             viewModel.processCapturedImage(
                                                                 bitmap = capturedBmp,
                                                                 context = context,
+                                                                hintCorners = hintCorners,
                                                                 onGraded = { scanId ->
                                                                     isCapturing.set(false)
                                                                     onNavigateToResult(scanId)
@@ -400,6 +407,7 @@ fun ScannerScreen(
                         IconButton(
                             onClick = {
                                 if (isCapturing.compareAndSet(false, true)) {
+                                    val hintCorners = lastLockedCornersNorm.get()
                                     captureAndGrade(
                                         imageCapture = imageCapture,
                                         context = context,
@@ -407,6 +415,7 @@ fun ScannerScreen(
                                             viewModel.processCapturedImage(
                                                 bitmap = bitmap,
                                                 context = context,
+                                                hintCorners = hintCorners,
                                                 onGraded = { scanId ->
                                                     isCapturing.set(false)
                                                     onNavigateToResult(scanId)

@@ -101,6 +101,7 @@ class ScannerViewModel(
     fun processCapturedImage(
         bitmap: Bitmap,
         context: Context,
+        hintCorners: List<Point>? = null,
         studentName: String = "",
         studentCode: String = "",
         onGraded: (Long) -> Unit
@@ -113,7 +114,11 @@ class ScannerViewModel(
 
             try {
                 val output = withContext(Dispatchers.Default) {
-                    OmrEngine.processAnswerSheet(bitmap, template.layoutConfig)
+                    OmrEngine.processAnswerSheet(
+                        bitmap = bitmap,
+                        layoutConfig = template.layoutConfig,
+                        hintCorners = hintCorners
+                    )
                 }
 
                 val summary = ScoringEngine.grade(exam, output.rawAnswers)

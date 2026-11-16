@@ -85,11 +85,23 @@ object PdfSheetGenerator {
         // Bottom-Right Anchor
         canvas.drawRect(width - margin - anchorSize, height - margin - anchorSize, width - margin, height - margin, paint)
 
-        // 3. Draw Outer Alignment Boundary (Thin solid black framing line)
+        // 3. Draw Outer Alignment Boundary (Thin solid black framing line with clearance for corner anchors)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.0f
-        canvas.drawRect(margin + anchorSize * 0.5f, margin + anchorSize * 0.5f,
-            width - (margin + anchorSize * 0.5f), height - (margin + anchorSize * 0.5f), paint)
+        val gap = 6f
+        val lineYTop = margin + anchorSize * 0.5f
+        val lineYBottom = height - margin - anchorSize * 0.5f
+        val lineXLeft = margin + anchorSize * 0.5f
+        val lineXRight = width - margin - anchorSize * 0.5f
+
+        // Top line
+        canvas.drawLine(margin + anchorSize + gap, lineYTop, width - margin - anchorSize - gap, lineYTop, paint)
+        // Bottom line
+        canvas.drawLine(margin + anchorSize + gap, lineYBottom, width - margin - anchorSize - gap, lineYBottom, paint)
+        // Left line
+        canvas.drawLine(lineXLeft, margin + anchorSize + gap, lineXLeft, height - margin - anchorSize - gap, paint)
+        // Right line
+        canvas.drawLine(lineXRight, margin + anchorSize + gap, lineXRight, height - margin - anchorSize - gap, paint)
 
         // 4. Instructions / OMR Filling Guide Banner
         drawInstructionBanner(canvas, width, margin + anchorSize + 6f)
