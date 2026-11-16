@@ -130,7 +130,7 @@ fun ScannedPapersScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Scanned Papers", fontWeight = FontWeight.Bold)
+                        Text("Scans", fontWeight = FontWeight.Bold)
                         val sub = when {
                             uiState.selectedExamId != null -> {
                                 val currentExam = uiState.exams.find { it.id == uiState.selectedExamId }
@@ -159,7 +159,7 @@ fun ScannedPapersScreen(
                     selected = true,
                     onClick = {},
                     icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
-                    label = { Text("Scanned Papers") }
+                    label = { Text("Scans") }
                 )
                 NavigationBarItem(
                     selected = false,

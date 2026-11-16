@@ -128,7 +128,7 @@ fun ExamListScreen(
                     selected = false,
                     onClick = { onNavigateToPapers(null) },
                     icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
-                    label = { Text("Scanned Papers") }
+                    label = { Text("Scans") }
                 )
                 NavigationBarItem(
                     selected = false,
