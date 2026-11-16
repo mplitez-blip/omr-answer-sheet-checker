@@ -24,7 +24,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -69,10 +70,9 @@ fun TemplateListScreen(
     viewModel: TemplateListViewModel,
     onCreateNewTemplate: () -> Unit,
     onEditTemplate: (Long) -> Unit,
-    onCreateExamForTemplate: (Long) -> Unit = {},
     onNavigateToExams: () -> Unit,
     onNavigateToPapers: () -> Unit = {},
-    onCheckForUpdates: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val templates by viewModel.templates.collectAsStateWithLifecycle()
@@ -93,12 +93,7 @@ fun TemplateListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Answer Sheet Templates", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onCheckForUpdates) {
-                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check for Updates")
-                    }
-                }
+                title = { Text("Answer Sheet Templates", fontWeight = FontWeight.Bold) }
             )
         },
         bottomBar = {
@@ -120,6 +115,12 @@ fun TemplateListScreen(
                     onClick = {},
                     icon = { Icon(Icons.Default.Description, contentDescription = null) },
                     label = { Text("Templates") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToSettings,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") }
                 )
             }
         },
@@ -151,7 +152,6 @@ fun TemplateListScreen(
                 items(templates, key = { it.id }) { template ->
                     TemplateCard(
                         template = template,
-                        onCreateExam = { onCreateExamForTemplate(template.id) },
                         onPreview = {
                             viewModel.exportTemplatePdf(context, template) { file ->
                                 previewPdf = Pair(file, template.name)
@@ -161,6 +161,11 @@ fun TemplateListScreen(
                         onDownload = {
                             viewModel.exportTemplatePdf(context, template) { file ->
                                 PdfExporterHelper.viewOrPrintPdf(context, file)
+                            }
+                        },
+                        onShare = {
+                            viewModel.exportTemplatePdf(context, template) { file ->
+                                PdfExporterHelper.sharePdf(context, file, title = "Share ${template.name} PDF")
                             }
                         },
                         onDelete = { viewModel.deleteTemplate(template) }
@@ -182,10 +187,10 @@ fun TemplateListScreen(
 @Composable
 fun TemplateCard(
     template: SheetTemplateEntity,
-    onCreateExam: () -> Unit,
     onPreview: () -> Unit,
     onEdit: () -> Unit,
     onDownload: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -204,7 +209,7 @@ fun TemplateCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
@@ -239,19 +244,7 @@ fun TemplateCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Button(
-                onClick = onCreateExam,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Create Exam with this Template", fontWeight = FontWeight.SemiBold)
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -263,9 +256,9 @@ fun TemplateCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.size(4.dp))
-                    Text("Preview", maxLines = 1, fontSize = 12.sp)
+                    Text("Preview", maxLines = 1, fontSize = 11.5.sp)
                 }
 
                 OutlinedButton(
@@ -273,9 +266,9 @@ fun TemplateCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.size(4.dp))
-                    Text(if (template.isDefault) "Customize" else "Edit", maxLines = 1, fontSize = 12.sp)
+                    Text(if (template.isDefault) "Customize" else "Edit", maxLines = 1, fontSize = 11.5.sp)
                 }
 
                 OutlinedButton(
@@ -283,9 +276,19 @@ fun TemplateCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.size(4.dp))
-                    Text("Download", maxLines = 1, fontSize = 12.sp)
+                    Text("Download", maxLines = 1, fontSize = 11.5.sp)
+                }
+
+                Button(
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text("Share", maxLines = 1, fontSize = 11.5.sp)
                 }
             }
         }

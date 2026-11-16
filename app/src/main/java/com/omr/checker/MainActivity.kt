@@ -30,6 +30,7 @@ import com.omr.checker.ui.results.ScanResultScreen
 import com.omr.checker.ui.results.ScanResultViewModel
 import com.omr.checker.ui.scanner.ScannerScreen
 import com.omr.checker.ui.scanner.ScannerViewModel
+import com.omr.checker.ui.settings.SettingsScreen
 import com.omr.checker.ui.templates.TemplateListScreen
 import com.omr.checker.ui.templates.TemplateListViewModel
 import com.omr.checker.ui.theme.OMRAnswerSheetCheckerTheme
@@ -56,7 +57,7 @@ class MainActivity : ComponentActivity() {
 
                     OMRAppNavigation(
                         viewModelFactory = viewModelFactory,
-                        onCheckForUpdates = { updateViewModel.checkForUpdates() }
+                        updateViewModel = updateViewModel
                     )
                 }
             }
@@ -67,7 +68,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun OMRAppNavigation(
     viewModelFactory: ViewModelFactory,
-    onCheckForUpdates: () -> Unit
+    updateViewModel: UpdateViewModel
 ) {
     val navController = rememberNavController()
 
@@ -102,7 +103,9 @@ fun OMRAppNavigation(
                 onNavigateToPapers = { examId ->
                     navController.navigate(if (examId != null && examId > 0) "papers?examId=$examId" else "papers")
                 },
-                onCheckForUpdates = onCheckForUpdates
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                }
             )
         }
 
@@ -117,11 +120,6 @@ fun OMRAppNavigation(
                 onEditTemplate = { templateId ->
                     navController.navigate("designer/$templateId")
                 },
-                onCreateExamForTemplate = { templateId ->
-                    navController.navigate("exams?templateId=$templateId") {
-                        popUpTo("exams?templateId={templateId}") { inclusive = true }
-                    }
-                },
                 onNavigateToExams = {
                     navController.navigate("exams") {
                         popUpTo("exams?templateId={templateId}") { inclusive = true }
@@ -130,7 +128,9 @@ fun OMRAppNavigation(
                 onNavigateToPapers = {
                     navController.navigate("papers")
                 },
-                onCheckForUpdates = onCheckForUpdates
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                }
             )
         }
 
@@ -253,7 +253,27 @@ fun OMRAppNavigation(
                 onNavigateToTemplates = {
                     navController.navigate("templates")
                 },
-                onCheckForUpdates = onCheckForUpdates
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                }
+            )
+        }
+
+        // 8. Settings Screen
+        composable("settings") {
+            SettingsScreen(
+                updateViewModel = updateViewModel,
+                onNavigateToExams = {
+                    navController.navigate("exams") {
+                        popUpTo("exams?templateId={templateId}") { inclusive = true }
+                    }
+                },
+                onNavigateToPapers = {
+                    navController.navigate("papers")
+                },
+                onNavigateToTemplates = {
+                    navController.navigate("templates")
+                }
             )
         }
     }

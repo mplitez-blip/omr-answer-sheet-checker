@@ -27,8 +27,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -75,7 +75,7 @@ fun ExamListScreen(
     onNavigateToEditKey: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
     onNavigateToPapers: (Long?) -> Unit = {},
-    onCheckForUpdates: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -116,12 +116,7 @@ fun ExamListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Exams & Grading", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onCheckForUpdates) {
-                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check for Updates")
-                    }
-                }
+                title = { Text("Exams & Grading", fontWeight = FontWeight.Bold) }
             )
         },
         bottomBar = {
@@ -143,6 +138,12 @@ fun ExamListScreen(
                     onClick = onNavigateToTemplates,
                     icon = { Icon(Icons.Default.Description, contentDescription = null) },
                     label = { Text("Templates") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToSettings,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") }
                 )
             }
         },
@@ -452,34 +453,37 @@ fun ExamCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
-                    onClick = onViewPapers
+                    onClick = onViewPapers,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Papers (${item.totalScans})")
+                    Text("Papers (${item.totalScans})", maxLines = 1, fontSize = 12.sp)
                 }
 
-                Row {
-                    OutlinedButton(
-                        onClick = onEditKey,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Key")
-                    }
+                OutlinedButton(
+                    onClick = onEditKey,
+                    modifier = Modifier.weight(0.75f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Key", maxLines = 1, fontSize = 12.sp)
+                }
 
-                    Button(
-                        onClick = onScan
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Scan")
-                    }
+                Button(
+                    onClick = onScan,
+                    modifier = Modifier.weight(0.85f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Scan", maxLines = 1, fontSize = 12.sp)
                 }
             }
         }

@@ -34,8 +34,8 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Grading
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -99,7 +99,7 @@ fun ScannedPapersScreen(
     onNavigateToScan: (Long) -> Unit,
     onNavigateToExams: () -> Unit,
     onNavigateToTemplates: () -> Unit,
-    onCheckForUpdates: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -144,11 +144,6 @@ fun ScannedPapersScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                },
-                actions = {
-                    IconButton(onClick = onCheckForUpdates) {
-                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check for Updates")
-                    }
                 }
             )
         },
@@ -171,6 +166,12 @@ fun ScannedPapersScreen(
                     onClick = onNavigateToTemplates,
                     icon = { Icon(Icons.Default.Description, contentDescription = null) },
                     label = { Text("Templates") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToSettings,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") }
                 )
             }
         },
