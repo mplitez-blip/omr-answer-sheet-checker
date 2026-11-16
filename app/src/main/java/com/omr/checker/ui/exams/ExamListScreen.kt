@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -86,6 +87,9 @@ fun ExamListScreen(
     var newExamSection by remember { mutableStateOf("Section A") }
     var selectedTemplateId by remember { mutableLongStateOf(1L) }
     var examToDelete by remember { mutableStateOf<ExamWithStats?>(null) }
+    var examToDuplicate by remember { mutableStateOf<ExamWithStats?>(null) }
+    var duplicateExamTitle by remember { mutableStateOf("") }
+    var duplicateSectionName by remember { mutableStateOf("") }
 
     LaunchedEffect(initialTemplateId) {
         if (initialTemplateId != null && initialTemplateId > 0) {
@@ -183,11 +187,109 @@ fun ExamListScreen(
                         onScan = { onNavigateToScan(item.exam.id) },
                         onEditKey = { onNavigateToEditKey(item.exam.id) },
                         onViewPapers = { onNavigateToPapers(item.exam.id) },
+                        onDuplicate = {
+                            examToDuplicate = item
+                            duplicateExamTitle = item.exam.title
+                            duplicateSectionName = when {
+                                item.exam.section.trim().endsWith("A", ignoreCase = true) -> item.exam.section.trim().dropLast(1) + "B"
+                                item.exam.section.isNotBlank() -> ""
+                                else -> ""
+                            }
+                        },
                         onDelete = { examToDelete = item }
                     )
                 }
             }
         }
+    }
+
+    // Duplicate Exam Dialog
+    examToDuplicate?.let { item ->
+        val original = item.exam
+        AlertDialog(
+            onDismissRequest = { examToDuplicate = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Duplicate Exam", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Copy this exam for another class or section. The full answer key (${original.answerKey.size} items) and template will be preserved.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("Source Exam: ${original.title}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            if (original.section.isNotBlank()) {
+                                Text("Original Section: ${original.section}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("Template: ${item.templateName} (${original.answerKey.size} items)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = duplicateExamTitle,
+                        onValueChange = { duplicateExamTitle = it },
+                        label = { Text("Exam Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = duplicateSectionName,
+                        onValueChange = { duplicateSectionName = it },
+                        label = { Text("New Class / Section (e.g. Section B)") },
+                        placeholder = { Text("e.g. Section B") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = "A new unique sheet code will be assigned. Scanned submissions will start fresh at 0.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (duplicateExamTitle.isNotBlank()) {
+                            viewModel.duplicateExam(
+                                originalExam = original,
+                                newSection = duplicateSectionName,
+                                newTitle = duplicateExamTitle
+                            )
+                            examToDuplicate = null
+                        }
+                    }
+                ) {
+                    Text("Duplicate Exam")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { examToDuplicate = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Delete Exam Confirmation Dialog
@@ -341,6 +443,7 @@ fun ExamCard(
     onScan: () -> Unit,
     onEditKey: () -> Unit,
     onViewPapers: () -> Unit,
+    onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -395,8 +498,26 @@ fun ExamCard(
                     }
                 }
 
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    IconButton(onClick = onDuplicate) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Duplicate for another section",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 

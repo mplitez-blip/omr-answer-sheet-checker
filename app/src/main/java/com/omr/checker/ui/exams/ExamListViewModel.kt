@@ -99,6 +99,35 @@ class ExamListViewModel(
         }
     }
 
+    fun duplicateExam(
+        originalExam: ExamEntity,
+        newSection: String,
+        newTitle: String = originalExam.title,
+        onCreated: (Long) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val randomSuffix = (100..999).random()
+            val examCode = "EXAM-${(System.currentTimeMillis() % 10000)}$randomSuffix"
+            val sectionName = newSection.trim()
+            val duplicatedExam = ExamEntity(
+                templateId = originalExam.templateId,
+                title = newTitle.ifBlank { originalExam.title },
+                section = sectionName,
+                date = originalExam.date,
+                sheetCode = examCode,
+                answerKey = originalExam.answerKey,
+                pointsPerItem = originalExam.pointsPerItem
+            )
+
+            val newId = repository.saveExam(duplicatedExam)
+            val secMsg = if (sectionName.isNotBlank()) " for $sectionName" else ""
+            _uiState.update {
+                it.copy(message = "Duplicated '${duplicatedExam.title}'$secMsg with identical answer key!")
+            }
+            onCreated(newId)
+        }
+    }
+
     fun updateExamTemplate(exam: ExamEntity, newTemplateId: Long) {
         viewModelScope.launch {
             val template = repository.getTemplateById(newTemplateId) ?: return@launch
