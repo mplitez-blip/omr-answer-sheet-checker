@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -84,6 +85,7 @@ fun ExamListScreen(
     var newExamTitle by remember { mutableStateOf("Midterm Exam") }
     var newExamSection by remember { mutableStateOf("Section A") }
     var selectedTemplateId by remember { mutableLongStateOf(1L) }
+    var examToDelete by remember { mutableStateOf<ExamWithStats?>(null) }
 
     LaunchedEffect(initialTemplateId) {
         if (initialTemplateId != null && initialTemplateId > 0) {
@@ -181,11 +183,43 @@ fun ExamListScreen(
                         onScan = { onNavigateToScan(item.exam.id) },
                         onEditKey = { onNavigateToEditKey(item.exam.id) },
                         onViewPapers = { onNavigateToPapers(item.exam.id) },
-                        onDelete = { viewModel.deleteExam(item.exam) }
+                        onDelete = { examToDelete = item }
                     )
                 }
             }
         }
+    }
+
+    // Delete Exam Confirmation Dialog
+    examToDelete?.let { item ->
+        val exam = item.exam
+        AlertDialog(
+            onDismissRequest = { examToDelete = null },
+            title = { Text("Delete Exam?", fontWeight = FontWeight.Bold) },
+            text = {
+                val papersWarning = if (item.totalScans > 0) {
+                    " This will permanently delete all ${item.totalScans} scanned paper(s) associated with this exam."
+                } else ""
+                val sectionText = if (exam.section.isNotBlank()) " (${exam.section})" else ""
+                Text("Are you sure you want to delete \"${exam.title}\"$sectionText?$papersWarning This action cannot be undone.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteExam(exam)
+                        examToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { examToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showCreateDialog) {

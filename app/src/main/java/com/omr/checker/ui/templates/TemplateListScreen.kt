@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +46,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,6 +83,7 @@ fun TemplateListScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var previewPdf by remember { mutableStateOf<Pair<File, String>?>(null) }
+    var templateToDelete by remember { mutableStateOf<SheetTemplateEntity?>(null) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -168,11 +172,38 @@ fun TemplateListScreen(
                                 PdfExporterHelper.sharePdf(context, file, title = "Share ${template.name} PDF")
                             }
                         },
-                        onDelete = { viewModel.deleteTemplate(template) }
+                        onDelete = { templateToDelete = template }
                     )
                 }
             }
         }
+    }
+
+    // Delete Template Confirmation Dialog
+    templateToDelete?.let { template ->
+        AlertDialog(
+            onDismissRequest = { templateToDelete = null },
+            title = { Text("Delete Template?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Are you sure you want to delete \"${template.name}\" (${template.totalItems} items)? This action cannot be undone.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTemplate(template)
+                        templateToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { templateToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     previewPdf?.let { (file, title) ->
