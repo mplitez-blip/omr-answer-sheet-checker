@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. Paper Sheet Shadow -->
+    <path
+        android:fillColor="#25000000"
+        android:pathData="M32,24 h48 a4,4 0 0 1 4,4 v54 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-54 a4,4 0 0 1 4,-4 z" />
+
+    <!-- 2. Main Crisp White OMR Sheet Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,22 h48 a4,4 0 0 1 4,4 v54 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-54 a4,4 0 0 1 4,-4 z" />
+
+    <!-- Top Fold / Accent Tab -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M70,22 L82,34 L70,34 Z" />
+    <path
+        android:fillColor="#CFD8DC"
+        android:pathData="M70,22 L82,34 H70 Z" />
+
+    <!-- 3. Four Corner Registration Marks (Fiducial Squares) -->
+    <!-- Top-Left -->
+    <path
+        android:fillColor="#263238"
+        android:pathData="M34,26 h4 v4 h-4 z" />
+    <!-- Top-Right -->
+    <path
+        android:fillColor="#263238"
+        android:pathData="M64,26 h4 v4 h-4 z" />
+    <!-- Bottom-Left -->
+    <path
+        android:fillColor="#263238"
+        android:pathData="M34,72 h4 v4 h-4 z" />
+    <!-- Bottom-Right -->
+    <path
+        android:fillColor="#263238"
+        android:pathData="M70,72 h4 v4 h-4 z" />
+
+    <!-- 4. Sheet Title Bar -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M42,27 h18 v2.5 h-18 z" />
+
+    <!-- 5. OMR Bubble Rows (Row 1 to 4) -->
+    <!-- Row 1: Item 1 - Bubble B filled (Dark) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M37,36 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#263238"
+        android:pathData="M45,36 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M53,36 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M61,36 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- Row 2: Item 2 - Bubble C filled (Dark) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M37,44 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M45,44 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#263238"
+        android:pathData="M53,44 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M61,44 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- Row 3: Item 3 - Bubble A filled (Dark) -->
+    <path
+        android:fillColor="#263238"
+        android:pathData="M37,52 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M45,52 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M53,52 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M61,52 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- Row 4: Item 4 - Bubble D filled (Dark) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M37,60 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M45,60 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M53,60 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#263238"
+        android:pathData="M61,60 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- Row 5: Item 5 - Bubble B filled (Dark) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M37,67 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#263238"
+        android:pathData="M45,67 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M53,67 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M61,67 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- 6. Viewfinder Scanner Frame (Cyan-Green targeting corners) -->
+    <!-- Top-Left Target Bracket -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M23,31 V23 H31" />
+    <!-- Top-Right Target Bracket -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M85,31 V23 H77" />
+    <!-- Bottom-Left Target Bracket -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M23,77 V85 H31" />
+    <!-- Bottom-Right Target Bracket -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M85,77 V85 H77" />
+
+    <!-- 7. Graded Verification Badge (Green Shield/Circle with Checkmark) in bottom right corner -->
+    <!-- Badge Drop Shadow -->
+    <path
+        android:fillColor="#20000000"
+        android:pathData="M70,69 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0" />
+    <!-- Badge Background (Emerald Green) -->
+    <path
+        android:fillColor="#00C853"
+        android:pathData="M69,67 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+    <!-- Inner White Stroke Ring -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:pathData="M69,67 a11.5,11.5 0 1,0 23,0 a11.5,11.5 0 1,0 -23,0" />
+    <!-- Bold White Checkmark inside Badge -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M75,67 L80,72 L89,61" />
+
+</vector>
