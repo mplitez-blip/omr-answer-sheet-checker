@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -73,6 +74,7 @@ fun ExamListScreen(
     onNavigateToScan: (Long) -> Unit,
     onNavigateToEditKey: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
+    onNavigateToPapers: (Long?) -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -132,6 +134,12 @@ fun ExamListScreen(
                 )
                 NavigationBarItem(
                     selected = false,
+                    onClick = { onNavigateToPapers(null) },
+                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
+                    label = { Text("Scanned Papers") }
+                )
+                NavigationBarItem(
+                    selected = false,
                     onClick = onNavigateToTemplates,
                     icon = { Icon(Icons.Default.Description, contentDescription = null) },
                     label = { Text("Templates") }
@@ -174,6 +182,7 @@ fun ExamListScreen(
                         item = item,
                         onScan = { onNavigateToScan(item.exam.id) },
                         onEditKey = { onNavigateToEditKey(item.exam.id) },
+                        onViewPapers = { onNavigateToPapers(item.exam.id) },
                         onChangeTemplate = {
                             changeTemplateSelectedId = item.exam.templateId
                             showChangeTemplateExam = item.exam
@@ -373,11 +382,14 @@ fun ExamCard(
     item: ExamWithStats,
     onScan: () -> Unit,
     onEditKey: () -> Unit,
+    onViewPapers: () -> Unit,
     onChangeTemplate: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onViewPapers() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -405,6 +417,25 @@ fun ExamCard(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (item.totalScans > 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ) {
+                        Text(
+                            text = if (item.totalScans > 0) {
+                                val avgStr = item.averageScore?.let { " • Avg: ${it.toInt()} pts" } ?: ""
+                                "📄 ${item.totalScans} Papers Scanned$avgStr"
+                            } else {
+                                "📄 0 Papers Scanned"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (item.totalScans > 0) MaterialTheme.colorScheme.primary else Color.Gray,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -421,24 +452,34 @@ fun ExamCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
-                    onClick = onEditKey,
-                    modifier = Modifier.padding(end = 8.dp)
+                    onClick = onViewPapers
                 ) {
-                    Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Answer Key")
+                    Icon(Icons.Default.DocumentScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Papers (${item.totalScans})")
                 }
 
-                Button(
-                    onClick = onScan
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Scan Sheets")
+                Row {
+                    OutlinedButton(
+                        onClick = onEditKey,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Key")
+                    }
+
+                    Button(
+                        onClick = onScan
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Scan")
+                    }
                 }
             }
         }

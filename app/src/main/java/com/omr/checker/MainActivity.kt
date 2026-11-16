@@ -24,6 +24,8 @@ import com.omr.checker.ui.exams.AnswerKeyEditScreen
 import com.omr.checker.ui.exams.AnswerKeyViewModel
 import com.omr.checker.ui.exams.ExamListScreen
 import com.omr.checker.ui.exams.ExamListViewModel
+import com.omr.checker.ui.papers.ScannedPapersScreen
+import com.omr.checker.ui.papers.ScannedPapersViewModel
 import com.omr.checker.ui.results.ScanResultScreen
 import com.omr.checker.ui.results.ScanResultViewModel
 import com.omr.checker.ui.scanner.ScannerScreen
@@ -97,6 +99,9 @@ fun OMRAppNavigation(
                 onNavigateToTemplates = {
                     navController.navigate("templates")
                 },
+                onNavigateToPapers = { examId ->
+                    navController.navigate(if (examId != null && examId > 0) "papers?examId=$examId" else "papers")
+                },
                 onCheckForUpdates = onCheckForUpdates
             )
         }
@@ -121,6 +126,9 @@ fun OMRAppNavigation(
                     navController.navigate("exams") {
                         popUpTo("exams?templateId={templateId}") { inclusive = true }
                     }
+                },
+                onNavigateToPapers = {
+                    navController.navigate("papers")
                 },
                 onCheckForUpdates = onCheckForUpdates
             )
@@ -210,6 +218,42 @@ fun OMRAppNavigation(
                         popUpTo("result/$scanResultId") { inclusive = true }
                     }
                 }
+            )
+        }
+
+        // 7. Scanned Papers Screen
+        composable(
+            route = "papers?examId={examId}",
+            arguments = listOf(
+                navArgument("examId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
+        ) { backStackEntry ->
+            val examIdArg = backStackEntry.arguments?.getLong("examId") ?: -1L
+            val papersViewModel: ScannedPapersViewModel = viewModel(factory = viewModelFactory)
+            if (examIdArg > 0) {
+                papersViewModel.setSelectedExam(examIdArg)
+            }
+            ScannedPapersScreen(
+                viewModel = papersViewModel,
+                initialExamId = if (examIdArg > 0) examIdArg else null,
+                onNavigateToResult = { scanResultId ->
+                    navController.navigate("result/$scanResultId")
+                },
+                onNavigateToScan = { examId ->
+                    navController.navigate("scanner/$examId")
+                },
+                onNavigateToExams = {
+                    navController.navigate("exams") {
+                        popUpTo("exams?templateId={templateId}") { inclusive = true }
+                    }
+                },
+                onNavigateToTemplates = {
+                    navController.navigate("templates")
+                },
+                onCheckForUpdates = onCheckForUpdates
             )
         }
     }

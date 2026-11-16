@@ -35,6 +35,9 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(ScanResultViewModel::class.java) -> {
                 ScanResultViewModel(repository) as T
             }
+            modelClass.isAssignableFrom(com.omr.checker.ui.papers.ScannedPapersViewModel::class.java) -> {
+                com.omr.checker.ui.papers.ScannedPapersViewModel(repository) as T
+            }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

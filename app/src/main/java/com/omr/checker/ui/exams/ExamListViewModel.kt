@@ -47,13 +47,18 @@ class ExamListViewModel(
         }
 
         viewModelScope.launch {
-            combine(repository.allExams, repository.allTemplates) { exams, templates ->
+            combine(repository.allExams, repository.allTemplates, repository.allResults) { exams, templates, results ->
                 val templateMap = templates.associateBy { it.id }
+                val resultsByExam = results.groupBy { it.examId }
                 exams.map { exam ->
                     val tpl = templateMap[exam.templateId]
+                    val examResults = resultsByExam[exam.id] ?: emptyList()
+                    val avg = if (examResults.isNotEmpty()) examResults.map { it.score }.average().toFloat() else null
                     ExamWithStats(
                         exam = exam,
-                        templateName = tpl?.name ?: "Template #${exam.templateId}"
+                        templateName = tpl?.name ?: "Template #${exam.templateId}",
+                        totalScans = examResults.size,
+                        averageScore = avg
                     )
                 }
             }.collect { list ->

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -70,6 +71,7 @@ fun TemplateListScreen(
     onEditTemplate: (Long) -> Unit,
     onCreateExamForTemplate: (Long) -> Unit = {},
     onNavigateToExams: () -> Unit,
+    onNavigateToPapers: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -104,8 +106,14 @@ fun TemplateListScreen(
                 NavigationBarItem(
                     selected = false,
                     onClick = onNavigateToExams,
-                    icon = { Icon(Icons.Default.Description, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Assignment, contentDescription = null) },
                     label = { Text("Exams") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToPapers,
+                    icon = { Icon(Icons.Default.DocumentScanner, contentDescription = null) },
+                    label = { Text("Scanned Papers") }
                 )
                 NavigationBarItem(
                     selected = true,
