@@ -348,8 +348,8 @@ fun ExamCard(
                     ) {
                         Text(
                             text = if (item.totalScans > 0) {
-                                val avgStr = item.averageScore?.let { " • Avg: ${it.toInt()} pts" } ?: ""
-                                "📄 ${item.totalScans} Papers Scanned$avgStr"
+                                val mpsStr = item.mps?.let { " • MPS: ${String.format(java.util.Locale.US, "%.1f", it)}%" } ?: ""
+                                "📄 ${item.totalScans} Papers Scanned$mpsStr"
                             } else {
                                 "📄 0 Papers Scanned"
                             },

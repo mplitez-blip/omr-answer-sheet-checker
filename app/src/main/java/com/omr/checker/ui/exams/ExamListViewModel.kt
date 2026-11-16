@@ -18,7 +18,8 @@ data class ExamWithStats(
     val exam: ExamEntity,
     val templateName: String = "",
     val totalScans: Int = 0,
-    val averageScore: Float? = null
+    val averageScore: Float? = null,
+    val mps: Float? = null
 )
 
 data class ExamListUiState(
@@ -54,11 +55,13 @@ class ExamListViewModel(
                     val tpl = templateMap[exam.templateId]
                     val examResults = resultsByExam[exam.id] ?: emptyList()
                     val avg = if (examResults.isNotEmpty()) examResults.map { it.score }.average().toFloat() else null
+                    val mps = if (examResults.isNotEmpty()) examResults.map { it.percentage }.average().toFloat() else null
                     ExamWithStats(
                         exam = exam,
                         templateName = tpl?.name ?: "Template #${exam.templateId}",
                         totalScans = examResults.size,
-                        averageScore = avg
+                        averageScore = avg,
+                        mps = mps
                     )
                 }
             }.collect { list ->
