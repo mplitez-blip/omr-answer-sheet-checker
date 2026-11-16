@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
@@ -45,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -63,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -270,27 +271,98 @@ fun ExamDetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = { viewModel.updateSearchQuery(it) },
-                            placeholder = { Text("Search student name or code...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                            trailingIcon = {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (uiState.searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search student name or code...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = uiState.searchQuery,
+                                        onValueChange = { viewModel.updateSearchQuery(it) },
+                                        singleLine = true,
+                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                                 if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                    IconButton(
+                                        onClick = { viewModel.updateSearchQuery("") },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Clear",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        )
+                            }
+                        }
 
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) {
-                                Icon(Icons.Default.Sort, contentDescription = "Sort Options")
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (uiState.sortOption != PaperSortOption.DATE_DESC) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                },
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (uiState.sortOption != PaperSortOption.DATE_DESC) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                    }
+                                ),
+                                modifier = Modifier.size(40.dp),
+                                onClick = { showSortMenu = true }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = "Sort Options",
+                                        tint = if (uiState.sortOption != PaperSortOption.DATE_DESC) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
+
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
