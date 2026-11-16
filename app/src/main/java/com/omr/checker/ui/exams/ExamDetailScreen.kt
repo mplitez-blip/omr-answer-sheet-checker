@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.Grading
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
@@ -113,7 +112,11 @@ fun ExamDetailScreen(
 
     val exam = uiState.currentExam
     val examTitle = exam?.title ?: "Exam Details"
-    val sectionInfo = if (exam != null && exam.section.isNotBlank()) "Section: ${exam.section} • ${exam.sheetCode}" else (exam?.sheetCode ?: "")
+    val sectionInfo = if (exam != null) {
+        val itemsLabel = "${exam.answerKey.size} Items"
+        if (exam.section.isNotBlank()) "Section: ${exam.section} • $itemsLabel • ${exam.sheetCode}"
+        else "$itemsLabel • ${exam.sheetCode}"
+    } else ""
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -639,32 +642,6 @@ private fun PaperItemCard(
                             }
                         }
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!result.scannedImagePath.isNullOrEmpty()) {
-                    OutlinedButton(
-                        onClick = onPreviewImage,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("View Sheet")
-                    }
-                }
-
-                Button(onClick = onReview) {
-                    Icon(Icons.Default.Grading, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Grade Breakdown")
                 }
             }
         }

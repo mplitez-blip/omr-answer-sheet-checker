@@ -1,6 +1,6 @@
 package com.omr.checker.ui.templates
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,12 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,11 +34,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omr.checker.data.entity.SheetTemplateEntity
-import com.omr.checker.generator.PdfExporterHelper
 import com.omr.checker.ui.preview.PdfPreviewDialog
 import java.io.File
 
@@ -81,7 +73,7 @@ fun TemplateListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var previewPdf by remember { mutableStateOf<Pair<File, String>?>(null) }
+    var previewData by remember { mutableStateOf<Pair<File, SheetTemplateEntity>?>(null) }
     var templateToDelete by remember { mutableStateOf<SheetTemplateEntity?>(null) }
 
     LaunchedEffect(uiState.message) {
@@ -151,18 +143,7 @@ fun TemplateListScreen(
                         template = template,
                         onPreview = {
                             viewModel.exportTemplatePdf(context, template) { file ->
-                                previewPdf = Pair(file, template.name)
-                            }
-                        },
-                        onEdit = { onEditTemplate(template.id) },
-                        onDownload = {
-                            viewModel.exportTemplatePdf(context, template) { file ->
-                                PdfExporterHelper.viewOrPrintPdf(context, file)
-                            }
-                        },
-                        onShare = {
-                            viewModel.exportTemplatePdf(context, template) { file ->
-                                PdfExporterHelper.sharePdf(context, file, title = "Share ${template.name} PDF")
+                                previewData = Pair(file, template)
                             }
                         },
                         onDelete = { templateToDelete = template }
@@ -199,11 +180,18 @@ fun TemplateListScreen(
         )
     }
 
-    previewPdf?.let { (file, title) ->
+    previewData?.let { (file, template) ->
         PdfPreviewDialog(
             pdfFile = file,
-            title = title,
-            onDismiss = { previewPdf = null }
+            title = template.name,
+            subtitle = "${template.totalItems} Questions (A-${'A' + template.optionsPerItem - 1})${if (template.isDefault) " • Read-Only" else ""}",
+            onCustomize = if (!template.isDefault) {
+                {
+                    previewData = null
+                    onEditTemplate(template.id)
+                }
+            } else null,
+            onDismiss = { previewData = null }
         )
     }
 }
@@ -212,13 +200,12 @@ fun TemplateListScreen(
 fun TemplateCard(
     template: SheetTemplateEntity,
     onPreview: () -> Unit,
-    onEdit: () -> Unit,
-    onDownload: () -> Unit,
-    onShare: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPreview),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (template.isDefault) Color(0xFFF0F7FF) else MaterialTheme.colorScheme.surface
@@ -257,10 +244,18 @@ fun TemplateCard(
                 }
 
                 if (template.isDefault) {
-                    SuggestionChip(
-                        onClick = {},
-                        label = { Text("DEFAULT", fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                    ) {
+                        Text(
+                            text = "READ-ONLY",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 } else {
                     IconButton(onClick = onDelete) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
@@ -268,52 +263,18 @@ fun TemplateCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
             ) {
-                OutlinedButton(
-                    onClick = onPreview,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text("Preview", maxLines = 1, fontSize = 11.5.sp)
-                }
-
-                OutlinedButton(
-                    onClick = onEdit,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text(if (template.isDefault) "Customize" else "Edit", maxLines = 1, fontSize = 11.5.sp)
-                }
-
-                OutlinedButton(
-                    onClick = onDownload,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text("Download", maxLines = 1, fontSize = 11.5.sp)
-                }
-
-                Button(
-                    onClick = onShare,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text("Share", maxLines = 1, fontSize = 11.5.sp)
-                }
+                Text(
+                    text = "📄 Tap card to preview answer sheet",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
         }
     }

@@ -79,7 +79,7 @@ object DefaultTemplates {
     fun createDefault60TemplateEntity(): SheetTemplateEntity {
         return SheetTemplateEntity(
             id = DEFAULT_60_ID,
-            name = "Default 60-Item Answer Sheet (A-D)",
+            name = "60-Item Answer Sheet (A-D)",
             totalItems = 60,
             optionsPerItem = 4,
             isDefault = true,

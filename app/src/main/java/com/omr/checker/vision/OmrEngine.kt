@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import com.omr.checker.data.entity.ExamEntity
 import com.omr.checker.data.model.BubbleCoordinateHelper
 import com.omr.checker.data.model.BubbleGridConfig
@@ -797,34 +796,7 @@ object OmrEngine {
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // 1. Draw Graded Score Banner at Top Header
-        val isPass = scoreSummary.percentage >= 60f
-        val themeColor = if (isPass) Color.parseColor("#2E7D32") else Color.parseColor("#C62828")
-        val themeBg = if (isPass) Color.parseColor("#E8F5E9") else Color.parseColor("#FFEBEE")
-
-        val badgeY = height * 0.012f
-        val badgeH = height * 0.038f
-        val badgeRect = RectF(width * 0.06f, badgeY, width * 0.94f, badgeY + badgeH)
-
-        paint.style = Paint.Style.FILL
-        paint.color = themeBg
-        canvas.drawRoundRect(badgeRect, 10f, 10f, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2.5f
-        paint.color = themeColor
-        canvas.drawRoundRect(badgeRect, 10f, 10f, paint)
-
-        paint.style = Paint.Style.FILL
-        paint.color = themeColor
-        paint.textSize = badgeH * 0.50f
-        paint.isFakeBoldText = true
-
-        val scoreText = "SCORE: ${scoreSummary.earnedScore.toInt()} / ${scoreSummary.totalPoints.toInt()} (${scoreSummary.percentage.toInt()}%)   •   ✔ ${scoreSummary.correctCount} Correct   ❌ ${scoreSummary.incorrectCount + scoreSummary.blankCount} Wrong"
-        val textWidth = paint.measureText(scoreText)
-        canvas.drawText(scoreText, (width - textWidth) / 2f, badgeY + badgeH * 0.68f, paint)
-
-        // 2. Locate Questions & Bubbles
+        // Locate Questions & Bubbles
         val gridElement = layoutConfig.elements.firstOrNull { it.type == ElementType.BUBBLE_GRID }
             ?: return annotated
         val config = gridElement.gridConfig ?: BubbleGridConfig()
@@ -846,6 +818,9 @@ object OmrEngine {
         val labelWidth = 28f * (width / 595f)
 
         for (q in config.startQuestion..config.endQuestion) {
+            // Ignore unassigned questions (only grade and annotate questions present in the answer key)
+            val correctAns = exam.answerKey[q] ?: continue
+
             val qIndex = q - config.startQuestion
             val colIndex = qIndex / questionsPerCol
             val rowIndex = qIndex % questionsPerCol
@@ -855,7 +830,6 @@ object OmrEngine {
 
             val isCorrect = scoreSummary.itemResults[q]
             val studentAns = rawAnswers[q]
-            val correctAns = exam.answerKey[q]
 
             // Mark position right over / beside the item number
             val itemNumCenterX = colStartX + labelWidth * 0.38f
@@ -902,7 +876,7 @@ object OmrEngine {
                 val by = rowY + rowHeight * 0.5f
 
                 val isStudentChoice = studentAns != null && studentAns.equals(option, ignoreCase = true)
-                val isCorrectKey = correctAns != null && correctAns.equals(option, ignoreCase = true)
+                val isCorrectKey = correctAns.equals(option, ignoreCase = true)
 
                 if (isStudentChoice && isCorrectKey) {
                     // Correct Choice: Solid green ring + translucent green fill

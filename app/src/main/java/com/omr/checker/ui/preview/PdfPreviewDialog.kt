@@ -3,28 +3,28 @@ package com.omr.checker.ui.preview
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,31 +34,45 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.omr.checker.generator.PdfExporterHelper
 import com.omr.checker.generator.PdfRendererHelper
 import java.io.File
 
+/**
+ * Maximized edge-to-edge PDF preview dialog with top actions (Customize, Download, Share)
+ * and interactive pinch-to-zoom / pan capabilities for inspecting answer sheet layouts.
+ */
 @Composable
 fun PdfPreviewDialog(
     pdfFile: File?,
     title: String,
+    subtitle: String? = null,
+    onCustomize: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (pdfFile == null) return
@@ -67,10 +81,13 @@ fun PdfPreviewDialog(
     var previewBitmap by remember(pdfFile) { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember(pdfFile) { mutableStateOf(true) }
 
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
     LaunchedEffect(pdfFile) {
         isLoading = true
         try {
-            previewBitmap = PdfRendererHelper.renderPdfPageToBitmap(pdfFile, scaleMultiplier = 2.0f)
+            previewBitmap = PdfRendererHelper.renderPdfPageToBitmap(pdfFile, scaleMultiplier = 3.0f)
         } catch (_: Exception) {
             previewBitmap = null
         } finally {
@@ -80,119 +97,236 @@ fun PdfPreviewDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp
+            modifier = Modifier.fillMaxSize(),
+            color = Color(0xFF1E2124)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Top Action Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                        Column {
-                            Text(
-                                text = "PDF Preview",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Row {
-                        IconButton(onClick = { PdfExporterHelper.sharePdf(context, pdfFile, title) }) {
-                            Icon(Icons.Default.Share, contentDescription = "Share PDF")
-                        }
-                        IconButton(onClick = { PdfExporterHelper.viewOrPrintPdf(context, pdfFile) }) {
-                            Icon(Icons.Default.Print, contentDescription = "Print PDF")
-                        }
-                    }
-                }
-
-                // Rendered PDF Content Area
+            Box(modifier = Modifier.fillMaxSize()) {
+                // 1. Maximized Zoomable & Pannable PDF Layer
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .background(Color(0xFFE8ECEF))
-                        .padding(16.dp),
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (scale > 1.1f) {
+                                        scale = 1f
+                                        offset = Offset.Zero
+                                    } else {
+                                        scale = 2.4f
+                                        offset = Offset.Zero
+                                    }
+                                }
+                            )
+                        }
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                scale = newScale
+                                offset = if (newScale > 1f) {
+                                    Offset(offset.x + pan.x, offset.y + pan.y)
+                                } else {
+                                    Offset.Zero
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = Color.White)
                     } else if (previewBitmap != null) {
-                        Column(
+                        Card(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.95f)
-                                    .aspectRatio(1f / 1.414f)
-                                    .shadow(8.dp, RoundedCornerShape(4.dp)),
-                                shape = RoundedCornerShape(4.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
-                            ) {
-                                Image(
-                                    bitmap = previewBitmap!!.asImageBitmap(),
-                                    contentDescription = "PDF Preview Page",
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxSize()
+                                .fillMaxWidth(0.96f)
+                                .aspectRatio(1f / 1.414f)
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = offset.x,
+                                    translationY = offset.y
                                 )
-                            }
+                                .shadow(12.dp, RoundedCornerShape(4.dp)),
+                            shape = RoundedCornerShape(4.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Image(
+                                bitmap = previewBitmap!!.asImageBitmap(),
+                                contentDescription = "Maximized PDF Preview Page",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
                     } else {
-                        Text("Could not render PDF preview.")
+                        Text(
+                            text = "Could not render PDF preview.",
+                            color = Color.White
+                        )
                     }
                 }
 
-                // Bottom Buttons
-                Row(
+                // 2. Top Header & Action Menu
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .align(Alignment.TopCenter),
+                    color = Color.Black.copy(alpha = 0.82f)
                 ) {
-                    OutlinedButton(
-                        onClick = { PdfExporterHelper.sharePdf(context, pdfFile, title) },
-                        modifier = Modifier.weight(1f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share PDF")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = Color.White
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = subtitle ?: "Double-tap or pinch to inspect sheet",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Customize Action (only shown if customizable / not read-only)
+                            if (onCustomize != null) {
+                                OutlinedButton(
+                                    onClick = onCustomize,
+                                    modifier = Modifier.padding(end = 4.dp),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Customize",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Customize",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            // Download / Print Action
+                            IconButton(onClick = { PdfExporterHelper.viewOrPrintPdf(context, pdfFile) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = "Print or Download",
+                                    tint = Color.White
+                                )
+                            }
+
+                            // Share Action
+                            IconButton(onClick = { PdfExporterHelper.sharePdf(context, pdfFile, title = "Share $title PDF") }) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Share PDF",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. Floating Bottom Zoom Controls
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (scale > 1.05f) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.65f),
+                            modifier = Modifier.size(40.dp),
+                            onClick = {
+                                scale = 1f
+                                offset = Offset.Zero
+                            }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reset Zoom",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
 
-                    Button(
-                        onClick = { PdfExporterHelper.viewOrPrintPdf(context, pdfFile) },
-                        modifier = Modifier.weight(1f)
+                    // Zoom Pill: - / % / +
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.Black.copy(alpha = 0.65f)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Print / Download")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val next = (scale - 0.5f).coerceAtLeast(1f)
+                                    scale = next
+                                    if (next == 1f) offset = Offset.Zero
+                                }
+                            ) {
+                                Text("−", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Text(
+                                text = "${(scale * 100).toInt()}%",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    val next = (scale + 0.5f).coerceAtMost(5f)
+                                    scale = next
+                                }
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
                     }
                 }
             }

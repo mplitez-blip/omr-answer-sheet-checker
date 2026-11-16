@@ -32,13 +32,18 @@ class OMRRepository(private val database: AppDatabase) {
         val existing = templateDao.getDefaultTemplate()
         val defaultTemplate = DefaultTemplates.createDefault60TemplateEntity()
         if (existing != null) {
-            val grid = existing.layoutConfig.elements.firstOrNull { it.type == com.omr.checker.data.model.ElementType.BUBBLE_GRID }
-            if (grid?.gridConfig?.columns != 3) {
-                val updated = existing.copy(layoutConfig = defaultTemplate.layoutConfig)
-                templateDao.update(updated)
-                return updated
+            var updated = existing
+            if (updated.name.contains("Default", ignoreCase = true)) {
+                updated = updated.copy(name = updated.name.replace("Default ", "", ignoreCase = true).trim())
             }
-            return existing
+            val grid = updated.layoutConfig.elements.firstOrNull { it.type == com.omr.checker.data.model.ElementType.BUBBLE_GRID }
+            if (grid?.gridConfig?.columns != 3) {
+                updated = updated.copy(layoutConfig = defaultTemplate.layoutConfig)
+            }
+            if (updated != existing) {
+                templateDao.update(updated)
+            }
+            return updated
         }
         val id = templateDao.insert(defaultTemplate)
         return defaultTemplate.copy(id = id)

@@ -55,4 +55,32 @@ class ScoringTest {
         assertEquals(1, summary.incorrectCount)
         assertEquals(1, summary.blankCount)
     }
+
+    @Test
+    fun testScoreCalculation_UnassignedItemsIgnored_50outOf60() {
+        // Teacher configures only 50 answer keys on a 60-item sheet
+        val key = (1..50).associateWith { 'A' }
+        val exam = ExamEntity(
+            id = 2,
+            templateId = 1,
+            title = "50-Question Quiz",
+            sheetCode = "QUIZ-50",
+            answerKey = key,
+            pointsPerItem = 1.0f
+        )
+
+        // Student answered 1..60, but questions 51..60 have no answer key
+        val studentAnswers = (1..60).associateWith { 'A' as Char? }
+        val summary = ScoringEngine.grade(exam, studentAnswers)
+
+        assertEquals(50.0f, summary.earnedScore, 0.001f)
+        assertEquals(50.0f, summary.totalPoints, 0.001f)
+        assertEquals(100.0f, summary.percentage, 0.001f)
+        assertEquals(50, summary.correctCount)
+        assertEquals(0, summary.incorrectCount)
+        assertEquals(0, summary.blankCount)
+        // Ensure questions 51..60 are completely omitted from grading results
+        assertEquals(false, summary.itemResults.containsKey(51))
+        assertEquals(false, summary.itemResults.containsKey(60))
+    }
 }

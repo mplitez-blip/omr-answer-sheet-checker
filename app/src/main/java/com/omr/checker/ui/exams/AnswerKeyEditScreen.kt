@@ -34,6 +34,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +77,11 @@ fun AnswerKeyEditScreen(
                     }
                 },
                 actions = {
+                    if (uiState.answerKey.isNotEmpty()) {
+                        TextButton(onClick = { viewModel.clearAllAnswers() }) {
+                            Text("Clear All")
+                        }
+                    }
                     IconButton(onClick = { viewModel.saveAnswerKey { onNavigateBack() } }) {
                         Icon(Icons.Default.Save, contentDescription = "Save Key")
                     }
@@ -108,16 +114,34 @@ fun AnswerKeyEditScreen(
         ) {
             item {
                 Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = uiState.templateName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${uiState.answerKey.size} / ${uiState.totalQuestions} Set",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${uiState.templateName} (${uiState.totalQuestions} Questions)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Tap the correct bubble for each question:",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Tap a bubble to set answer. Tap again to clear/unassign. Total score is based only on assigned items (e.g., 50 items = n/50 pts).",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

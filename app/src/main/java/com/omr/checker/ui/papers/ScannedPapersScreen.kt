@@ -730,32 +730,6 @@ private fun ScannedPaperCard(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!result.scannedImagePath.isNullOrEmpty()) {
-                    OutlinedButton(
-                        onClick = onPreviewImage,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("View Sheet")
-                    }
-                }
-
-                Button(onClick = onReview) {
-                    Icon(Icons.Default.Grading, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Grade Breakdown")
-                }
-            }
         }
     }
 }

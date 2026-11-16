@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -206,30 +205,6 @@ fun ScanResultScreen(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = Color.DarkGray
                                         )
-                                    }
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        modifier = Modifier.clickable { showEnlargedImage = true }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ZoomIn,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(15.dp),
-                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Text(
-                                                text = "Tap to enlarge",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                        }
                                     }
                                 }
 

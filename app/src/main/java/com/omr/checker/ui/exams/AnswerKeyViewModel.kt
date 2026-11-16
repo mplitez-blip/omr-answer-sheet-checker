@@ -36,13 +36,8 @@ class AnswerKeyViewModel(
             val totalQ = template?.totalItems ?: exam.answerKey.size.coerceAtLeast(1)
             val optionsCount = template?.optionsPerItem ?: 4
 
-            val currentKey = exam.answerKey.toMutableMap()
-            val options = (0 until optionsCount).map { ('A' + it) }
-            for (q in 1..totalQ) {
-                if (!currentKey.containsKey(q)) {
-                    currentKey[q] = options[(q - 1) % optionsCount]
-                }
-            }
+            // Retain exact answer key set by user (do not force-fill unassigned items)
+            val currentKey = exam.answerKey.toMap()
 
             _uiState.update {
                 it.copy(
@@ -61,9 +56,18 @@ class AnswerKeyViewModel(
     fun setAnswer(question: Int, option: Char) {
         _uiState.update { state ->
             val updated = state.answerKey.toMutableMap()
-            updated[question] = option
+            if (updated[question] == option) {
+                // Tapping the already selected answer clears / unassigns it
+                updated.remove(question)
+            } else {
+                updated[question] = option
+            }
             state.copy(answerKey = updated)
         }
+    }
+
+    fun clearAllAnswers() {
+        _uiState.update { it.copy(answerKey = emptyMap()) }
     }
 
     fun saveAnswerKey(onSaved: () -> Unit) {
