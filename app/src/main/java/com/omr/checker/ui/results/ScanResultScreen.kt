@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.omr.checker.ui.preview.FullscreenSheetViewerDialog
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -205,12 +207,30 @@ fun ScanResultScreen(
                                             color = Color.DarkGray
                                         )
                                     }
-                                    Text(
-                                        text = "Tap to enlarge",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.clickable { showEnlargedImage = true }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ZoomIn,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp),
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                text = "Tap to enlarge",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -292,43 +312,19 @@ fun ScanResultScreen(
 
     // Fullscreen Sheet Audit Dialog
     if (showEnlargedImage && !imagePath.isNullOrEmpty()) {
-        Dialog(onDismissRequest = { showEnlargedImage = false }) {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Answer Sheet Audit View",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        IconButton(onClick = { showEnlargedImage = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AsyncImage(
-                        model = File(imagePath),
-                        contentDescription = "Full Graded Sheet",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                }
-            }
-        }
+        val totalPts = summary?.totalPoints ?: 0f
+        val scorePts = summary?.earnedScore ?: 0f
+        val pct = summary?.percentage ?: 0f
+        val studentTitle = uiState.studentName.ifBlank { "Graded Answer Sheet" }
+        val scoreSubtitle = "Score: ${scorePts.toInt()} / ${totalPts.toInt()} (${pct.toInt()}%)"
+
+        FullscreenSheetViewerDialog(
+            imagePath = imagePath,
+            title = studentTitle,
+            subtitle = scoreSubtitle,
+            subtitleColor = if (pct >= 60f) Color(0xFF00E676) else Color(0xFFFF5252),
+            onDismiss = { showEnlargedImage = false }
+        )
     }
 }
 

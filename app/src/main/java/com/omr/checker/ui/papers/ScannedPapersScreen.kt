@@ -85,6 +85,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.omr.checker.data.entity.ScanResultEntity
+import com.omr.checker.ui.preview.FullscreenSheetViewerDialog
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -362,12 +363,11 @@ fun ScannedPapersScreen(
 
     // Full-Screen Zoomable Sheet Inspection Dialog
     paperToPreview?.let { paper ->
-        FullscreenSheetInspectionDialog(
+        FullscreenSheetViewerDialog(
             imagePath = paper.scannedImagePath,
-            studentName = paper.studentName.ifBlank { "Scanned Paper #${paper.id}" },
-            score = paper.score,
-            totalPoints = paper.totalPoints,
-            percentage = paper.percentage,
+            title = paper.studentName.ifBlank { "Scanned Paper #${paper.id}" },
+            subtitle = "Score: ${paper.score.toInt()} / ${paper.totalPoints.toInt()} (${paper.percentage.toInt()}%)",
+            subtitleColor = if (paper.percentage >= 60f) Color(0xFF00E676) else Color(0xFFFF5252),
             onDismiss = { paperToPreview = null }
         )
     }
@@ -680,125 +680,6 @@ private fun ScannedPaperCard(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Grade Breakdown")
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FullscreenSheetInspectionDialog(
-    imagePath: String?,
-    studentName: String,
-    score: Float,
-    totalPoints: Float,
-    percentage: Float,
-    onDismiss: () -> Unit
-) {
-    if (imagePath.isNullOrEmpty()) {
-        onDismiss()
-        return
-    }
-
-    val file = remember(imagePath) { File(imagePath) }
-    if (!file.exists()) {
-        onDismiss()
-        return
-    }
-
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.Black
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Interactive Zoomable / Pannable Image
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(0.8f, 5f)
-                                offset = if (scale > 1f) {
-                                    Offset(offset.x + pan.x, offset.y + pan.y)
-                                } else {
-                                    Offset.Zero
-                                }
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = file,
-                        contentDescription = "Graded Sheet High-Resolution",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y
-                            )
-                    )
-                }
-
-                // Top Header Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.7f))
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .align(Alignment.TopCenter),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = studentName,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "Score: ${score.toInt()} / ${totalPoints.toInt()} (${percentage.toInt()}%)",
-                            color = if (percentage >= 60f) Color(0xFF00E676) else Color(0xFFFF5252),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (scale != 1f) {
-                            TextButton(onClick = {
-                                scale = 1f
-                                offset = Offset.Zero
-                            }) {
-                                Text("Reset Zoom", color = Color.White)
-                            }
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                        }
-                    }
-                }
-
-                // Bottom Hint
-                Text(
-                    text = "Pinch to zoom • Drag to pan",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
             }
         }
     }
