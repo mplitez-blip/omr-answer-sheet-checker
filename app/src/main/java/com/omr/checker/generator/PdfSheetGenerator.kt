@@ -85,10 +85,47 @@ object PdfSheetGenerator {
         // Bottom-Right Anchor
         canvas.drawRect(width - margin - anchorSize, height - margin - anchorSize, width - margin, height - margin, paint)
 
-        // 3. Draw Outer Alignment Boundary (Thin solid black framing line with clearance for corner anchors)
+        // 3. Draw Guard Offset Outline around each of the 4 corner markers
+        val guardOffset = 3.5f
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.0f
-        val gap = 6f
+        paint.color = Color.BLACK
+
+        // Top-Left Guard Outline
+        canvas.drawRect(
+            margin - guardOffset,
+            margin - guardOffset,
+            margin + anchorSize + guardOffset,
+            margin + anchorSize + guardOffset,
+            paint
+        )
+        // Top-Right Guard Outline
+        canvas.drawRect(
+            width - margin - anchorSize - guardOffset,
+            margin - guardOffset,
+            width - margin + guardOffset,
+            margin + anchorSize + guardOffset,
+            paint
+        )
+        // Bottom-Left Guard Outline
+        canvas.drawRect(
+            margin - guardOffset,
+            height - margin - anchorSize - guardOffset,
+            margin + anchorSize + guardOffset,
+            height - margin + guardOffset,
+            paint
+        )
+        // Bottom-Right Guard Outline
+        canvas.drawRect(
+            width - margin - anchorSize - guardOffset,
+            height - margin - anchorSize - guardOffset,
+            width - margin + guardOffset,
+            height - margin + guardOffset,
+            paint
+        )
+
+        // 4. Draw Outer Alignment Boundary (Thin solid black framing line with clearance for corner anchors and guard outlines)
+        val gap = guardOffset + 5f
         val lineYTop = margin + anchorSize * 0.5f
         val lineYBottom = height - margin - anchorSize * 0.5f
         val lineXLeft = margin + anchorSize * 0.5f
@@ -103,7 +140,7 @@ object PdfSheetGenerator {
         // Right line
         canvas.drawLine(lineXRight, margin + anchorSize + gap, lineXRight, height - margin - anchorSize - gap, paint)
 
-        // 4. Instructions / OMR Filling Guide Banner
+        // 5. Instructions / OMR Filling Guide Banner
         drawInstructionBanner(canvas, width, margin + anchorSize + 6f)
 
         // 5. Draw Layout Elements
@@ -139,12 +176,22 @@ object PdfSheetGenerator {
 
     private fun drawInstructionBanner(canvas: Canvas, pageWidth: Float, topY: Float) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.textSize = 7.5f
-        paint.color = Color.DKGRAY
 
-        val text = "INSTRUCTIONS: Use dark pencil or black pen. Fill bubbles completely. Do not fold or smudge."
+        // Line 1: Heading
+        paint.textSize = 9.5f
+        paint.isFakeBoldText = true
+        paint.color = Color.BLACK
+        val heading = "INSTRUCTIONS"
+        val headingWidth = paint.measureText(heading)
+        canvas.drawText(heading, (pageWidth - headingWidth) / 2f, topY, paint)
+
+        // Line 2: Details after line break
+        paint.textSize = 8.5f
+        paint.isFakeBoldText = false
+        paint.color = Color.DKGRAY
+        val text = "Use dark pencil or black pen. Fill bubbles completely. Do not fold or smudge."
         val textWidth = paint.measureText(text)
-        canvas.drawText(text, (pageWidth - textWidth) / 2f, topY, paint)
+        canvas.drawText(text, (pageWidth - textWidth) / 2f, topY + 11.5f, paint)
     }
 
     private fun drawFieldBox(
@@ -161,7 +208,7 @@ object PdfSheetGenerator {
 
         // Label above / inside
         paint.color = Color.BLACK
-        paint.textSize = 8.5f
+        paint.textSize = 10f
         paint.isFakeBoldText = true
         canvas.drawText(label, x + 3f, y + 10f, paint)
 
@@ -169,15 +216,16 @@ object PdfSheetGenerator {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 0.8f
         paint.color = Color.GRAY
-        val boxRect = RectF(x, y + 13f, x + w, y + h)
+        val boxRect = RectF(x, y + 13.5f, x + w, y + h)
         canvas.drawRoundRect(boxRect, 2f, 2f, paint)
 
         if (value.isNotBlank()) {
             paint.style = Paint.Style.FILL
             paint.color = Color.BLACK
-            paint.textSize = if (isBold) 11f else 9.5f
+            paint.textSize = if (isBold) 13f else 11.5f
             paint.isFakeBoldText = isBold
-            canvas.drawText(value, x + 6f, y + 13f + (h - 13f) * 0.65f, paint)
+            val boxCenterY = (y + 13.5f + y + h) / 2f
+            canvas.drawText(value, x + 6f, boxCenterY + paint.textSize * 0.35f, paint)
         }
     }
 
@@ -194,12 +242,13 @@ object PdfSheetGenerator {
         val questionsPerCol = (totalQuestions + numCols - 1) / numCols
 
         val colWidth = w / numCols
-        val rowHeight = (h - 20f) / questionsPerCol.coerceAtLeast(1)
+        val headerHeight = 22f
+        val rowHeight = (h - headerHeight) / questionsPerCol.coerceAtLeast(1)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
         // Column Titles
-        paint.textSize = 9f
+        paint.textSize = 11f
         paint.isFakeBoldText = true
         paint.color = Color.BLACK
 
@@ -217,7 +266,7 @@ object PdfSheetGenerator {
 
                 paint.style = Paint.Style.FILL
                 paint.color = Color.BLACK
-                canvas.drawText("Questions $startQ - $endQ", colStartX + 8f, y + 12f, paint)
+                canvas.drawText("Questions $startQ - $endQ", colStartX + 8f, y + 14f, paint)
             }
         }
 
@@ -229,26 +278,27 @@ object PdfSheetGenerator {
             for (rowIndex in 0 until questionsPerCol) {
                 if (currentQ > config.endQuestion) break
 
-                val rowY = y + 20f + rowIndex * rowHeight
-
-                // Question Number
-                paint.style = Paint.Style.FILL
-                paint.color = Color.BLACK
-                paint.textSize = 8.5f
-                paint.isFakeBoldText = true
-                val qStr = String.format("%2d.", currentQ)
-                canvas.drawText(qStr, colStartX + 6f, rowY + rowHeight * 0.65f, paint)
+                val rowY = y + headerHeight + rowIndex * rowHeight
 
                 // Option Bubbles (A, B, C, D)
                 val optionsStartX = colStartX + 28f
                 val availableBubbleWidth = colWidth - 34f
                 val bubbleSpacing = availableBubbleWidth / config.options.size
                 val bubbleRadius = (bubbleSpacing * 0.32f).coerceAtMost(rowHeight * 0.38f).coerceAtLeast(5.5f)
+                val bubbleFontSize = bubbleRadius * 1.25f
+
+                // Question Number (Same font size as option letters inside bubbles)
+                paint.style = Paint.Style.FILL
+                paint.color = Color.BLACK
+                paint.textSize = bubbleFontSize
+                paint.isFakeBoldText = true
+                val qStr = String.format("%2d.", currentQ)
+                val bubbleCenterY = rowY + rowHeight * 0.5f
+                canvas.drawText(qStr, colStartX + 5f, bubbleCenterY + bubbleFontSize * 0.38f, paint)
 
                 for (optIndex in config.options.indices) {
                     val option = config.options[optIndex]
                     val bubbleCenterX = optionsStartX + optIndex * bubbleSpacing + bubbleSpacing * 0.5f
-                    val bubbleCenterY = rowY + rowHeight * 0.5f
 
                     // Draw outer bubble circle
                     paint.style = Paint.Style.STROKE
@@ -259,7 +309,7 @@ object PdfSheetGenerator {
                     // Draw option letter inside bubble (e.g. A, B, C, D)
                     paint.style = Paint.Style.FILL
                     paint.color = Color.DKGRAY
-                    paint.textSize = bubbleRadius * 1.25f
+                    paint.textSize = bubbleFontSize
                     paint.isFakeBoldText = false
                     val letterWidth = paint.measureText(option.toString())
                     canvas.drawText(

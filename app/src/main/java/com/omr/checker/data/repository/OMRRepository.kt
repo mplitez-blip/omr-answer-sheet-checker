@@ -37,7 +37,7 @@ class OMRRepository(private val database: AppDatabase) {
                 updated = updated.copy(name = updated.name.replace("Default ", "", ignoreCase = true).trim())
             }
             val grid = updated.layoutConfig.elements.firstOrNull { it.type == com.omr.checker.data.model.ElementType.BUBBLE_GRID }
-            if (grid?.gridConfig?.columns != 3) {
+            if (grid?.gridConfig?.columns != 3 || grid.y != 0.240f) {
                 updated = updated.copy(layoutConfig = defaultTemplate.layoutConfig)
             }
             if (updated != existing) {

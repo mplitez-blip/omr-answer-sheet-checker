@@ -16,7 +16,7 @@ object DefaultTemplates {
                 type = ElementType.TEST_NAME,
                 label = "Test / Subject Name",
                 x = 0.08f,
-                y = 0.06f,
+                y = 0.085f,
                 width = 0.54f,
                 height = 0.045f
             ),
@@ -24,7 +24,7 @@ object DefaultTemplates {
                 type = ElementType.ANSWER_SHEET_CODE,
                 label = "Sheet Code",
                 x = 0.65f,
-                y = 0.06f,
+                y = 0.085f,
                 width = 0.27f,
                 height = 0.045f
             ),
@@ -32,7 +32,7 @@ object DefaultTemplates {
                 type = ElementType.STUDENT_NAME,
                 label = "Student Name",
                 x = 0.08f,
-                y = 0.115f,
+                y = 0.138f,
                 width = 0.54f,
                 height = 0.04f
             ),
@@ -40,7 +40,7 @@ object DefaultTemplates {
                 type = ElementType.DATE,
                 label = "Date",
                 x = 0.65f,
-                y = 0.115f,
+                y = 0.138f,
                 width = 0.27f,
                 height = 0.04f
             ),
@@ -48,7 +48,7 @@ object DefaultTemplates {
                 type = ElementType.SECTION,
                 label = "Grade & Section",
                 x = 0.08f,
-                y = 0.165f,
+                y = 0.188f,
                 width = 0.40f,
                 height = 0.04f
             ),
@@ -56,9 +56,9 @@ object DefaultTemplates {
                 type = ElementType.BUBBLE_GRID,
                 label = "Questions (1-60)",
                 x = 0.08f,
-                y = 0.22f,
+                y = 0.240f,
                 width = 0.84f,
-                height = 0.69f,
+                height = 0.680f,
                 gridConfig = BubbleGridConfig(
                     startQuestion = 1,
                     endQuestion = 60,
