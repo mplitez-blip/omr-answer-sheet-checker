@@ -13,44 +13,28 @@ object DefaultTemplates {
     fun createDefault60Layout(): SheetLayoutConfig {
         val elements = listOf(
             SheetElement(
-                type = ElementType.TEST_NAME,
-                label = "Test / Subject Name",
-                x = 0.08f,
-                y = 0.085f,
-                width = 0.54f,
-                height = 0.045f
-            ),
-            SheetElement(
-                type = ElementType.ANSWER_SHEET_CODE,
-                label = "Sheet Code",
-                x = 0.65f,
-                y = 0.085f,
-                width = 0.27f,
-                height = 0.045f
-            ),
-            SheetElement(
                 type = ElementType.STUDENT_NAME,
                 label = "Student Name",
                 x = 0.08f,
-                y = 0.138f,
+                y = 0.090f,
                 width = 0.54f,
-                height = 0.04f
+                height = 0.060f
             ),
             SheetElement(
                 type = ElementType.DATE,
                 label = "Date",
                 x = 0.65f,
-                y = 0.138f,
+                y = 0.090f,
                 width = 0.27f,
-                height = 0.04f
+                height = 0.060f
             ),
             SheetElement(
                 type = ElementType.SECTION,
                 label = "Grade & Section",
                 x = 0.08f,
-                y = 0.188f,
-                width = 0.40f,
-                height = 0.04f
+                y = 0.165f,
+                width = 0.54f,
+                height = 0.060f
             ),
             SheetElement(
                 type = ElementType.BUBBLE_GRID,

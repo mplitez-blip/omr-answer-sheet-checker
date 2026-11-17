@@ -85,63 +85,55 @@ object PdfSheetGenerator {
         // Bottom-Right Anchor
         canvas.drawRect(width - margin - anchorSize, height - margin - anchorSize, width - margin, height - margin, paint)
 
-        // 3. Draw Guard Offset Outline around each of the 4 corner markers
-        val guardOffset = 3.5f
+        // 3. Draw Guard Offset Outline around each of the 4 corner markers (larger, touching side lines)
+        val guardOffset = 6.0f
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.0f
         paint.color = Color.BLACK
 
-        // Top-Left Guard Outline
-        canvas.drawRect(
-            margin - guardOffset,
-            margin - guardOffset,
-            margin + anchorSize + guardOffset,
-            margin + anchorSize + guardOffset,
-            paint
-        )
-        // Top-Right Guard Outline
-        canvas.drawRect(
-            width - margin - anchorSize - guardOffset,
-            margin - guardOffset,
-            width - margin + guardOffset,
-            margin + anchorSize + guardOffset,
-            paint
-        )
-        // Bottom-Left Guard Outline
-        canvas.drawRect(
-            margin - guardOffset,
-            height - margin - anchorSize - guardOffset,
-            margin + anchorSize + guardOffset,
-            height - margin + guardOffset,
-            paint
-        )
-        // Bottom-Right Guard Outline
-        canvas.drawRect(
-            width - margin - anchorSize - guardOffset,
-            height - margin - anchorSize - guardOffset,
-            width - margin + guardOffset,
-            height - margin + guardOffset,
-            paint
-        )
+        // Guard Outline Rectangles
+        val tlGuardLeft = margin - guardOffset
+        val tlGuardTop = margin - guardOffset
+        val tlGuardRight = margin + anchorSize + guardOffset
+        val tlGuardBottom = margin + anchorSize + guardOffset
 
-        // 4. Draw Outer Alignment Boundary (Thin solid black framing line with clearance for corner anchors and guard outlines)
-        val gap = guardOffset + 5f
+        val trGuardLeft = width - margin - anchorSize - guardOffset
+        val trGuardTop = margin - guardOffset
+        val trGuardRight = width - margin + guardOffset
+        val trGuardBottom = margin + anchorSize + guardOffset
+
+        val blGuardLeft = margin - guardOffset
+        val blGuardTop = height - margin - anchorSize - guardOffset
+        val blGuardRight = margin + anchorSize + guardOffset
+        val blGuardBottom = height - margin + guardOffset
+
+        val brGuardLeft = width - margin - anchorSize - guardOffset
+        val brGuardTop = height - margin - anchorSize - guardOffset
+        val brGuardRight = width - margin + guardOffset
+        val brGuardBottom = height - margin + guardOffset
+
+        canvas.drawRect(tlGuardLeft, tlGuardTop, tlGuardRight, tlGuardBottom, paint)
+        canvas.drawRect(trGuardLeft, trGuardTop, trGuardRight, trGuardBottom, paint)
+        canvas.drawRect(blGuardLeft, blGuardTop, blGuardRight, blGuardBottom, paint)
+        canvas.drawRect(brGuardLeft, brGuardTop, brGuardRight, brGuardBottom, paint)
+
+        // 4. Draw Outer Alignment Boundary (Thin solid black framing lines touching guard outlines)
         val lineYTop = margin + anchorSize * 0.5f
         val lineYBottom = height - margin - anchorSize * 0.5f
         val lineXLeft = margin + anchorSize * 0.5f
         val lineXRight = width - margin - anchorSize * 0.5f
 
-        // Top line
-        canvas.drawLine(margin + anchorSize + gap, lineYTop, width - margin - anchorSize - gap, lineYTop, paint)
-        // Bottom line
-        canvas.drawLine(margin + anchorSize + gap, lineYBottom, width - margin - anchorSize - gap, lineYBottom, paint)
-        // Left line
-        canvas.drawLine(lineXLeft, margin + anchorSize + gap, lineXLeft, height - margin - anchorSize - gap, paint)
-        // Right line
-        canvas.drawLine(lineXRight, margin + anchorSize + gap, lineXRight, height - margin - anchorSize - gap, paint)
+        // Top line: touches right edge of TL guard outline and left edge of TR guard outline
+        canvas.drawLine(tlGuardRight, lineYTop, trGuardLeft, lineYTop, paint)
+        // Bottom line: touches right edge of BL guard outline and left edge of BR guard outline
+        canvas.drawLine(blGuardRight, lineYBottom, brGuardLeft, lineYBottom, paint)
+        // Left line: touches bottom edge of TL guard outline and top edge of BL guard outline
+        canvas.drawLine(lineXLeft, tlGuardBottom, lineXLeft, blGuardTop, paint)
+        // Right line: touches bottom edge of TR guard outline and top edge of BR guard outline
+        canvas.drawLine(lineXRight, trGuardBottom, lineXRight, brGuardTop, paint)
 
         // 5. Instructions / OMR Filling Guide Banner
-        drawInstructionBanner(canvas, width, margin + anchorSize + 6f)
+        drawInstructionBanner(canvas, width, margin + anchorSize + guardOffset + 4f)
 
         // 5. Draw Layout Elements
         for (element in layoutConfig.elements) {
@@ -208,15 +200,15 @@ object PdfSheetGenerator {
 
         // Label above / inside
         paint.color = Color.BLACK
-        paint.textSize = 10f
+        paint.textSize = 10.5f
         paint.isFakeBoldText = true
-        canvas.drawText(label, x + 3f, y + 10f, paint)
+        canvas.drawText(label, x + 3f, y + 11f, paint)
 
         // Value or text line box
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 0.8f
+        paint.strokeWidth = 0.9f
         paint.color = Color.GRAY
-        val boxRect = RectF(x, y + 13.5f, x + w, y + h)
+        val boxRect = RectF(x, y + 14.5f, x + w, y + h)
         canvas.drawRoundRect(boxRect, 2f, 2f, paint)
 
         if (value.isNotBlank()) {
@@ -224,7 +216,7 @@ object PdfSheetGenerator {
             paint.color = Color.BLACK
             paint.textSize = if (isBold) 13f else 11.5f
             paint.isFakeBoldText = isBold
-            val boxCenterY = (y + 13.5f + y + h) / 2f
+            val boxCenterY = (y + 14.5f + y + h) / 2f
             canvas.drawText(value, x + 6f, boxCenterY + paint.textSize * 0.35f, paint)
         }
     }

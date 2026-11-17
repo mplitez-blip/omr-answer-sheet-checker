@@ -36,8 +36,10 @@ class OMRRepository(private val database: AppDatabase) {
             if (updated.name.contains("Default", ignoreCase = true)) {
                 updated = updated.copy(name = updated.name.replace("Default ", "", ignoreCase = true).trim())
             }
+            val hasTestName = updated.layoutConfig.elements.any { it.type == com.omr.checker.data.model.ElementType.TEST_NAME }
+            val studentElement = updated.layoutConfig.elements.firstOrNull { it.type == com.omr.checker.data.model.ElementType.STUDENT_NAME }
             val grid = updated.layoutConfig.elements.firstOrNull { it.type == com.omr.checker.data.model.ElementType.BUBBLE_GRID }
-            if (grid?.gridConfig?.columns != 3 || grid.y != 0.240f) {
+            if (hasTestName || (studentElement != null && studentElement.height < 0.055f) || grid == null || grid.gridConfig?.columns != 3 || grid.y != 0.240f) {
                 updated = updated.copy(layoutConfig = defaultTemplate.layoutConfig)
             }
             if (updated != existing) {
