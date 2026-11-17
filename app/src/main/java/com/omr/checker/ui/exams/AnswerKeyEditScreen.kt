@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -94,13 +95,18 @@ fun AnswerKeyEditScreen(
                 shadowElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = { viewModel.saveAnswerKey { onNavigateBack() } },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(16.dp)
                 ) {
-                    Text("Save Answer Key")
+                    Button(
+                        onClick = { viewModel.saveAnswerKey { onNavigateBack() } },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Answer Key")
+                    }
                 }
             }
         }
