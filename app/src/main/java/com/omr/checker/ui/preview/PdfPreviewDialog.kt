@@ -261,75 +261,8 @@ fun PdfPreviewDialog(
                         }
                     }
                 }
-
-                // 3. Floating Bottom Zoom Controls
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (scale > 1.05f) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.65f),
-                            modifier = Modifier.size(40.dp),
-                            onClick = {
-                                scale = 1f
-                                offset = Offset.Zero
-                            }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Reset Zoom",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Zoom Pill: - / % / +
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color.Black.copy(alpha = 0.65f)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    val next = (scale - 0.5f).coerceAtLeast(1f)
-                                    scale = next
-                                    if (next == 1f) offset = Offset.Zero
-                                }
-                            ) {
-                                Text("−", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            Text(
-                                text = "${(scale * 100).toInt()}%",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-
-                            TextButton(
-                                onClick = {
-                                    val next = (scale + 0.5f).coerceAtMost(5f)
-                                    scale = next
-                                }
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
             }
         }
     }
 }
+
